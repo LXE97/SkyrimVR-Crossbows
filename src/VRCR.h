@@ -6,7 +6,7 @@
 #include <algorithm>
 #include "SKSE/Impl/Stubs.h"
 
-#include "native_papyrus.h"
+#include "mod_papyrus.h"
 #include "VR/PapyrusVRAPI.h"
 #include "VR/VRManagerAPI.h"
 #include "VR/OpenVRUtils.h"
@@ -14,10 +14,10 @@
 #include "higgsinterface001.h"
 #include "vrikinterface001.h"
 
-#include "custom_input.h"
-#include "custom_event_sink.hpp"
-#include "menu_checker.h"
-#include "projectile.h"
+#include "mod_input.h"
+#include "mod_eventSink.hpp"
+#include "menuChecker.h"
+#include "mod_projectile.h"
 #include "linalg.h"
 #include "VirtualCrossbow.h"
 
@@ -33,13 +33,15 @@ namespace VRCR
     const std::string thisPluginName = "VR_Crossbow_Overhaul.esp";
     extern uint8_t thisPluginID;
 
-    // temp config seciont
+    // temp config section
     extern RE::NiTransform config_SavedAimGrabHandspace;
-extern RE::NiPoint3 config_SavedAimGrabPosition;
+    extern RE::NiPoint3 config_SavedAimGrabPosition; 
+
     /// Main plugin entry point/ initialization function
     void StartMod();
     /// kPostLoadGame do stuff once player has loaded
     void GameLoad();
+    void PreGameLoad();
 
     // HIGGS
     void onWeaponGrabStart();

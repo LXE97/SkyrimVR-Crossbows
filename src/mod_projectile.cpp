@@ -1,4 +1,4 @@
-#include "projectile.h"
+#include "mod_projectile.h"
 namespace Fire
 {
     void GetElevationAzimuth(const RE::NiMatrix3 &rot, float &x, float &z)

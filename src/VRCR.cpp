@@ -1,4 +1,4 @@
-#include "VRCO.h"
+#include "VRCR.h"
 
 namespace VRCR
 {
@@ -46,6 +46,10 @@ namespace VRCR
 
     void PreHiggsUpdate()
     {
+        for (auto wpn : Crossbows)
+        {
+            wpn ? wpn->Update() : void();
+        }
     }
 
     // HIGGS two hand event handlers
@@ -96,7 +100,7 @@ namespace VRCR
         }
     }
 
-    void FavoriteGrabPosition()
+    void SetFavoriteGrabPosition()
     { /*
          if (g_higgsInterface->IsTwoHanding())
          {
@@ -118,7 +122,7 @@ namespace VRCR
     // weapon draw/sheathe event handler
     void onWeaponDraw(const SKSE::ActionEvent *event)
     {
-        if (event->actor == g_player->As<TESObjectREFR>())
+        if (g_player && g_player->As<TESObjectREFR>() == event->actor)
         {
             if (event->type == SKSE::ActionEvent::Type::kBeginDraw || event->type == SKSE::ActionEvent::Type::kEndDraw)
             {
@@ -141,16 +145,18 @@ namespace VRCR
     // Equip event handler
     void onEquipEvent(const TESEquipEvent *event)
     {
-        SKSE::log::info("equip event");
-        return;
-        if (event->actor.get() == g_player->As<TESObjectREFR>())
+        SKSE::log::info("equip event: getting actor");
+
+        if (g_player && g_player == event->actor.get())
         {
+            SKSE::log::info("equip event: looking up formid");
             auto item = TESForm::LookupByID(event->baseObject);
             if (item && item->IsWeapon() && item->As<TESObjectWEAP>()->IsCrossbow())
             {
+                SKSE::log::info("equip event: item is crossbow");
                 if (event->equipped)
                 {
-                    SKSE::log::info("inside crossbow");
+
                     // find out which hand just equipped it
                     bool hand;
                     if (g_player->GetEquippedObject(Right))
@@ -171,7 +177,7 @@ namespace VRCR
                     }
 
                     // TODO: get extra data
-                    SKSE::log::info("crossbow equipped in {} hand", hand);
+                    SKSE::log::info("equip event: crossbow equipped in {} hand", hand);
                     Crossbows[hand] = new VirtualCrossbow(event->baseObject, hand);
                 }
                 else
@@ -180,41 +186,17 @@ namespace VRCR
                     // find out which hand unequipped
                     if (Crossbows[Right] && g_player->GetEquippedObject(Right) == nullptr)
                     {
-                        SKSE::log::info("crossbow unequippped right");
+                        SKSE::log::info("equip event: crossbow unequippped right");
                         delete Crossbows[Right];
                         Crossbows[Right] = nullptr;
                     }
                     else if (Crossbows[Left] && g_player->GetEquippedObject(Left) == nullptr)
                     {
-                        SKSE::log::info("crossbow unequippped left");
+                        SKSE::log::info("equip event: crossbow unequippped left");
                         delete Crossbows[Left];
                         Crossbows[Left] = nullptr;
                     }
                 }
-            }
-        }
-    }
-
-    void onOverlap(PapyrusVR::VROverlapEvent e, uint32_t id, PapyrusVR::VRDevice device)
-    {
-        if (id == g_HolsterSphere && device == PapyrusVR::VRDevice_LeftController)
-        {
-            if (e == PapyrusVR::VROverlapEvent_OnEnter)
-            {
-                SKSE::log::info("overlap holster enter");
-                vrinput::AddCallback(config_SecondaryBtn, onHolsterBtnPress, Left, Press, ButtonDown);
-            }
-            else if (e == PapyrusVR::VROverlapEvent_OnExit)
-            {
-                SKSE::log::info("overlap holster exit");
-                vrinput::RemoveCallback(config_SecondaryBtn, onHolsterBtnPress, Left, Press, ButtonDown);
-            }
-        }
-        else
-        {
-            for (auto wpn : Crossbows)
-            {
-                wpn ? wpn->OnOverlap(e, id, device) : void();
             }
         }
     }
@@ -229,20 +211,25 @@ namespace VRCR
         }
         if (event->newContainer == playerID)
         { // item added to player
-            SKSE::log::info("player received item: {}", event->baseObj);
+            SKSE::log::info("player received item: {:x}", event->baseObj);
             auto eventitem = TESForm::LookupByID(event->baseObj);
             if (eventitem && eventitem->IsWeapon() && eventitem->As<TESObjectWEAP>()->IsCrossbow())
             {
-                //Offset::TESDescription::GetDescription;
-                // g_player->GetContainer()->RemoveObjectFromContainer(eventitem->As<TESBoundObject>(), event->itemCount);
+                // Offset::TESDescription::GetDescription;
+                //  g_player->GetContainer()->RemoveObjectFromContainer(eventitem->As<TESBoundObject>(), event->itemCount);
             }
         }
         else if (event->oldContainer == playerID)
         { // item removed from player
-            SKSE::log::info("player lost item: {}", event->baseObj);
-
-            if (event->baseObj)
+            SKSE::log::info("player lost item: {:X}", event->baseObj);
+            if (event->reference && event->reference.get())
             {
+                SKSE::log::info("item: {:X}", event->reference.get()->formID);
+            }
+
+            if (event->newContainer)
+            {
+                SKSE::log::info("item: {:X}", event->newContainer);
                 // get the extra data from the dupe
 
                 /*
@@ -268,6 +255,30 @@ namespace VRCR
                     // add new item
                     // TESForm::LookupByID<TESContainer>(event->newContainer)->AddObjectToContainer(TESForm::LookupByID<TESBoundObject>(swappa), event->itemCount, g_player);
                 }
+            }
+        }
+    }
+
+    void onOverlap(PapyrusVR::VROverlapEvent e, uint32_t id, PapyrusVR::VRDevice device)
+    {
+        if (id == g_HolsterSphere && device == PapyrusVR::VRDevice_LeftController)
+        {
+            if (e == PapyrusVR::VROverlapEvent_OnEnter)
+            {
+                SKSE::log::info("overlap holster enter");
+                vrinput::AddCallback(config_SecondaryBtn, onHolsterBtnPress, Left, Press, ButtonDown);
+            }
+            else if (e == PapyrusVR::VROverlapEvent_OnExit)
+            {
+                SKSE::log::info("overlap holster exit");
+                vrinput::RemoveCallback(config_SecondaryBtn, onHolsterBtnPress, Left, Press, ButtonDown);
+            }
+        }
+        else
+        {
+            for (auto wpn : Crossbows)
+            {
+                wpn ? wpn->OnOverlap(e, id, device) : void();
             }
         }
     }
@@ -332,28 +343,6 @@ namespace VRCR
         }
     }
 
-    class TESEquipEventHandler : public BSTEventSink<TESEquipEvent>
-    {
-    public:
-        virtual BSEventNotifyControl ProcessEvent(const TESEquipEvent *a_event, BSTEventSource<TESEquipEvent> *a_eventSource)
-        {
-            onEquipEvent(a_event);
-            return BSEventNotifyControl::kContinue;
-        }
-    };
-    TESEquipEventHandler equipActionHandler;
-
-    class TESContainerChangedHandler : public BSTEventSink<TESContainerChangedEvent>
-    {
-    public:
-        virtual BSEventNotifyControl ProcessEvent(const TESContainerChangedEvent *a_event, BSTEventSource<TESContainerChangedEvent> *a_eventSource)
-        {
-            onContainerChange(a_event);
-            return BSEventNotifyControl::kContinue;
-        }
-    };
-    TESContainerChangedHandler containerChangedHandler;
-
     void StartMod()
     {
         SKSE::log::info("StartMod entry");
@@ -390,23 +379,21 @@ namespace VRCR
         }
 
         // register event sinks and handlers
-
         auto SKSEActionEventSink = EventSink<SKSE::ActionEvent>::GetSingleton();
         SKSE::GetActionEventSource()->AddEventSink(SKSEActionEventSink);
         SKSEActionEventSink->AddCallback(onWeaponDraw);
 
         auto containerSink = EventSink<TESContainerChangedEvent>::GetSingleton();
-        ScriptEventSourceHolder::GetSingleton()->AddEventSink(&containerChangedHandler);
-
-        //ScriptEventSourceHolder::GetSingleton()->AddEventSink(&equipActionHandler);
+        ScriptEventSourceHolder::GetSingleton()->AddEventSink(containerSink);
+        containerSink->AddCallback(onContainerChange);
 
         auto equipSink = EventSink<TESEquipEvent>::GetSingleton();
         ScriptEventSourceHolder::GetSingleton()->AddEventSink(equipSink);
         equipSink->AddCallback(onEquipEvent);
 
-        //g_VRManager->RegisterVROverlapListener(onOverlap);
+        // g_VRManager->RegisterVROverlapListener(onOverlap);
 
-        //vrinput::AddCallback(vr::k_EButton_A, onTestButtonPress, Right, Press, ButtonDown);
+        // vrinput::AddCallback(vr::k_EButton_A, onTestButtonPress, Right, Press, ButtonDown);
 
         // PapyrusVR::Matrix34 transform;
         // NiTransform HeadToFeet;
@@ -418,6 +405,7 @@ namespace VRCR
     void GameLoad()
     {
         g_player = PlayerCharacter::GetSingleton();
+
         if (Crossbows[Right])
         {
             delete Crossbows[Right];
@@ -428,6 +416,11 @@ namespace VRCR
             delete Crossbows[Left];
             Crossbows[Left] = nullptr;
         }
+    }
+
+    void PreGameLoad()
+    {
+        // g_equipSink->RemoveCallback(onEquipEvent);
     }
 
     // handles low level button/trigger events

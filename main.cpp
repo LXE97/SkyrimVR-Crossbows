@@ -2,10 +2,9 @@
 
 #include "SKSE/API.h"
 #include "SKSE/Impl/Stubs.h"
-#include "VRCO.h"
+#include "VRCR.h"
 #include "higgsinterface001.h"
 #include "vrikinterface001.h"
-#include "custom_event_sink.hpp"
 
 void MessageListener(SKSE::MessagingInterface::Message *message);
 void OnPapyrusVRMessage(SKSE::MessagingInterface::Message *message);
@@ -84,6 +83,7 @@ void MessageListener(SKSE::MessagingInterface::Message *message)
 
     case SKSE::MessagingInterface::kPreLoadGame:
         info("kPreLoadGame: sent immediately before savegame is read");
+        VRCR::PreGameLoad();
         break;
 
     case SKSE::MessagingInterface::kPostLoadGame:

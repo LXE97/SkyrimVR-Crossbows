@@ -16,7 +16,7 @@ target_precompile_headers(${PROJECT_NAME} PRIVATE PCH.h)
 target_include_directories(${PROJECT_NAME} PRIVATE include src)
 
 
-if(OUTPUT_FOLDER DEFINE)
+if(DEFINED OUTPUT_FOLDER)
     # Copy the SKSE plugin .dll files into the SKSE/Plugins/ folder
     set(DLL_FOLDER "C:/SteamLibrary/steamapps/common/SkyrimVR/Data/SKSE/Plugins")
 

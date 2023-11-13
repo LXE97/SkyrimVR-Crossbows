@@ -1,6 +1,6 @@
 #pragma once
-#include "projectile.h"
-#include "VRCO.h"
+#include "mod_projectile.h"
+#include "VRCR.h"
 
 class VirtualCrossbow
 {

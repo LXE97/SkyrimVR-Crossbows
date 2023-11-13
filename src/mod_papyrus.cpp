@@ -1,4 +1,4 @@
-#include "native_papyrus.h"
+#include "mod_papyrus.h"
 
 namespace Papyrus
 {

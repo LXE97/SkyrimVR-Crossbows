@@ -39,21 +39,21 @@ void VirtualCrossbow::Update()
     using namespace VRCR;
     if (grabAnim)
     {
-        SKSE::log::info("xbow update");
         auto crossbowGrab = getGrabNode();
         auto crossbowRot = getLeverRotNode();
-        auto weaponRoot = getThisWeaponNode();
-        auto LHand = getThisHandNode();
-        auto Lcontroller = getThisControllerNode();
+        auto weaponNode = getThisWeaponNode();
+        auto grabHand = getOtherHandNode();
+        auto grabController = getOtherControllerNode();
 
-        if (LHand && crossbowGrab && crossbowRot)
+        if (grabHand && crossbowGrab && crossbowRot)
         {
             auto ctx = NiUpdateData();
 
             // update cocking lever angle
-            NiPoint3 dvector = Lcontroller->world.translate - crossbowRot->world.translate;
-            dvector = weaponRoot->world.Invert().rotate * dvector;
+            NiPoint3 dvector = grabController->world.translate - crossbowRot->world.translate;
+            dvector = weaponNode->world.Invert().rotate * dvector;
             float theta = atan2(-1.0 * dvector.z, dvector.y) - grab_initialtheta;
+
             const float maxrot = 0.6283185;
             const float minrot = 0.01745329;
             NiPoint3 rot;
@@ -67,7 +67,7 @@ void VirtualCrossbow::Update()
             // animate the rest of the crossbow bones
             for (auto bone : xbowStandard_Reload)
             {
-                auto node = weaponRoot->GetObjectByName(bone.first)->AsNode();
+                auto node = weaponNode->GetObjectByName(bone.first)->AsNode();
                 if (node)
                 {
                     auto keys = bone.second;
@@ -89,9 +89,9 @@ void VirtualCrossbow::Update()
             }
 
             // set grab hand transform
-            auto handTransform = LHand->world;
+            auto handTransform = grabHand->world;
             auto palmPos = handTransform * higgs_palmPosHandspace;
-            auto desiredTransform = weaponRoot->world;
+            auto desiredTransform = weaponNode->world;
             desiredTransform.translate += palmPos - crossbowGrab->world.translate;
             auto desiredTransformHandspace = handTransform.Invert() * desiredTransform;
             g_higgsInterface->SetGrabTransform(true, desiredTransformHandspace);
@@ -129,22 +129,20 @@ void VirtualCrossbow::OnGrabStart()
                     // SKSE::log::info("dist reload: {}", crossbowGrab->world.translate.GetDistance(Lcontroller->world.translate));
                     if (crossbowGrab->world.translate.GetDistance(grabController->world.translate) < config_InteractReloadDistance)
                     {
-                        // finger curl - need VRIK? possibly later callback
-                        SKSE::log::info("reload: override higgs config");
+                        // TODO finger curl - need VRIK possibly later callback
+
                         // save/modify higgs config values
                         VRCR::OverrideHiggsConfig();
-                        SKSE::log::info("reload: calculating");
+
                         NiPoint3 dvector = grabController->world.translate - crossbowRot->world.translate;
                         dvector = weaponNode->world.Invert().rotate * dvector;
                         grab_initialtheta = atan2(-1.0 * dvector.z, dvector.y);
 
                         auto handTransform = grabHand->world;
-
                         auto palmPos = handTransform * higgs_palmPosHandspace;
                         auto desiredTransform = weaponNode->world;
                         desiredTransform.translate += palmPos - crossbowGrab->world.translate;
                         auto desiredTransformHandspace = handTransform.Invert() * desiredTransform;
-                        SKSE::log::info("reload: setting transform");
                         g_higgsInterface->SetGrabTransform(true, desiredTransformHandspace);
                         grabAnim = true;
                     }
