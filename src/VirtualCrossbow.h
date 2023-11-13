@@ -2,13 +2,15 @@
 #include "mod_projectile.h"
 #include "VRCR.h"
 
+class AnimationProcessor;
+
 class VirtualCrossbow
 {
 public:
     VirtualCrossbow(int base, bool hand);
     ~VirtualCrossbow();
-    
-    typedef std::unordered_map<std::string, std::vector<std::pair<RE::NiQuaternion, float>>> animKeyframes;
+
+    Animation::AnimationProcessor animator;
 
     enum class State : uint8_t
     {
@@ -51,7 +53,6 @@ private:
 
     RE::NiPoint3 higgs_palmPosHandspace;
     uint32_t OverlapSphereID_PlaceArrow;
-    animKeyframes xbowStandard_Reload;
 
     // ambidexterity support
     RE::NiPointer<RE::NiNode> getThisHandNode();
@@ -74,4 +75,9 @@ private:
 
     // misc helpers
     void CreateOverlapSpheres(uint32_t &PlaceArrow);
+
+    // Animation
+    const std::string standard_reload = "standard_reload";
+
+    float Reload_Progress = 0;
 };

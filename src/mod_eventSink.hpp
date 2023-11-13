@@ -1,4 +1,5 @@
 #pragma once
+// lets you add/remove callbacks to event sources at runtime... not sure why I thought I needed this 
 
 template <typename T>
 using EventCallback = void (*)(const T *);

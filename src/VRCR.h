@@ -6,11 +6,9 @@
 #include <algorithm>
 #include "SKSE/Impl/Stubs.h"
 
-#include "mod_papyrus.h"
 #include "VR/PapyrusVRAPI.h"
 #include "VR/VRManagerAPI.h"
 #include "VR/OpenVRUtils.h"
-#include "Relocation.h"
 #include "higgsinterface001.h"
 #include "vrikinterface001.h"
 
@@ -18,8 +16,11 @@
 #include "mod_eventSink.hpp"
 #include "menuChecker.h"
 #include "mod_projectile.h"
+#include "mod_animation.h"
 #include "linalg.h"
 #include "VirtualCrossbow.h"
+
+class AnimationDataManager;
 
 namespace VRCR
 {

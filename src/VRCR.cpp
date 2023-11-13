@@ -1,5 +1,6 @@
 #include "VRCR.h"
 
+
 namespace VRCR
 {
     using namespace vrinput;
@@ -14,7 +15,7 @@ namespace VRCR
     SKSE::detail::SKSETaskInterface *g_task;
     OpenVRHookManagerAPI *g_OVRHookManager;
     PapyrusVR::VRManagerAPI *g_VRManager;
-
+    LARGE_INTEGER h;
     vr::TrackedDeviceIndex_t l_controller;
     vr::TrackedDeviceIndex_t r_controller;
     VirtualCrossbow *Crossbows[2] = {nullptr, nullptr};
@@ -221,40 +222,36 @@ namespace VRCR
         }
         else if (event->oldContainer == playerID)
         { // item removed from player
-            SKSE::log::info("player lost item: {:X}", event->baseObj);
+            SKSE::log::info("player lost item: {:X} new container: {}", event->baseObj, event->newContainer);
             if (event->reference && event->reference.get())
             {
                 SKSE::log::info("item: {:X}", event->reference.get()->formID);
             }
 
+            // get the extra data from the dupe
+
+            /*
+            auto f = event->reference.get()->extraList;
+            if (f)
+            {
+                auto enchant = f.GetByType(ExtraDataType::kEnchantment);
+                if (enchant)
+                {
+
+                }
+
+                // lookup what the dupe was referencing
+                // extradata = event->baseObj
+                // TESForm::LookupByID(extradata);
+                // remove the fake crossbow from the target's inventory and add a real one
+                // g_player->GetContainer()->AddObjectToContainer(eventitem->As<TESBoundObject>(), event->itemCount);
+
+            }
+            */
             if (event->newContainer)
             {
-                SKSE::log::info("item: {:X}", event->newContainer);
-                // get the extra data from the dupe
-
-                /*
-                auto f = event->reference.get()->extraList;
-                if (f)
-                {
-                    auto enchant = f.GetByType(ExtraDataType::kEnchantment);
-                    if (enchant)
-                    {
-
-                    }
-
-                    // lookup what the dupe was referencing
-                    // extradata = event->baseObj
-                    // TESForm::LookupByID(extradata);
-                    // remove the fake crossbow from the target's inventory and add a real one
-                    // g_player->GetContainer()->AddObjectToContainer(eventitem->As<TESBoundObject>(), event->itemCount);
-
-                }
-                */
-                if (event->newContainer)
-                {
-                    // add new item
-                    // TESForm::LookupByID<TESContainer>(event->newContainer)->AddObjectToContainer(TESForm::LookupByID<TESBoundObject>(swappa), event->itemCount, g_player);
-                }
+                // add new item
+                // TESForm::LookupByID<TESContainer>(event->newContainer)->AddObjectToContainer(TESForm::LookupByID<TESBoundObject>(swappa), event->itemCount, g_player);
             }
         }
     }
@@ -355,6 +352,9 @@ namespace VRCR
         RegisterVRInputCallback();
         PapyrusVR::OpenVRUtils::SetupConversion();
 
+        // Read crossbow animations from file
+        Animation::AnimationDataManager::GetSingleton()->ReadAnimationsFromFile();
+
         // Register MenuOpenCloseEvent handler
         MenuChecker::begin();
 
@@ -391,9 +391,9 @@ namespace VRCR
         ScriptEventSourceHolder::GetSingleton()->AddEventSink(equipSink);
         equipSink->AddCallback(onEquipEvent);
 
-        // g_VRManager->RegisterVROverlapListener(onOverlap);
+        g_VRManager->RegisterVROverlapListener(onOverlap);
 
-        // vrinput::AddCallback(vr::k_EButton_A, onTestButtonPress, Right, Press, ButtonDown);
+        vrinput::AddCallback(vr::k_EButton_A, onTestButtonPress, Right, Press, ButtonDown);
 
         // PapyrusVR::Matrix34 transform;
         // NiTransform HeadToFeet;
