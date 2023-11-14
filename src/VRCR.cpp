@@ -1,6 +1,5 @@
 #include "VRCR.h"
 
-
 namespace VRCR
 {
     using namespace vrinput;
@@ -129,7 +128,7 @@ namespace VRCR
             {
                 for (auto wpn : Crossbows)
                 {
-                    wpn ? wpn->Unsheathe() : void();
+                    wpn ? wpn->onUnsheathe() : void();
                 }
             }
 
@@ -137,7 +136,7 @@ namespace VRCR
             {
                 for (auto wpn : Crossbows)
                 {
-                    wpn ? wpn->Sheathe() : void();
+                    wpn ? wpn->onSheathe() : void();
                 }
             }
         }
@@ -340,6 +339,28 @@ namespace VRCR
         }
     }
 
+    void onPrimaryCrossbowButtonPress(vr::VRControllerState_t *const out)
+    {
+        SKSE::log::info("fire button pressed");
+        for (auto wpn : Crossbows)
+        {
+            if (wpn)
+            {
+                wpn ? wpn->OnPrimaryButtonPress(out) : void();
+            }
+        }
+    }
+
+    void onGrabButtonPress(vr::VRControllerState_t *const out)
+    {
+        // we already know we are overlapping
+    }
+
+    void onGrabButtonRelease(vr::VRControllerState_t *const out)
+    {
+        // get the difference from initial position to current position
+    }
+
     void StartMod()
     {
         SKSE::log::info("StartMod entry");
@@ -394,6 +415,7 @@ namespace VRCR
         g_VRManager->RegisterVROverlapListener(onOverlap);
 
         vrinput::AddCallback(vr::k_EButton_A, onTestButtonPress, Right, Press, ButtonDown);
+        vrinput::AddCallback(vr::k_EButton_SteamVR_Trigger, onPrimaryCrossbowButtonPress, Right, Press, ButtonDown);
 
         // PapyrusVR::Matrix34 transform;
         // NiTransform HeadToFeet;

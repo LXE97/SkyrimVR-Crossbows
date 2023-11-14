@@ -4,27 +4,19 @@
 
 VirtualCrossbow::VirtualCrossbow(int base, bool hand)
 {
-    prev_state = State::Start;
+    SKSE::log::info("Creating virtual crossbow for {:X} in {} hand", base, hand ? "left" : "right");
     _hand = hand;
-    ammo = nullptr;
-    grab_initialtheta = 0;
-    grabAnim = false;
-    // TODO: configurize all these settings
-    higgs_palmPosHandspace = {0, -2.4, 6};
-    config_InteractReloadDistance = 8;
-    config_InteractAimDistance = 8;
-    config_AllowAllActionsAlways = false;
 
     // CreateOverlapSpheres(OverlapSphereID_PlaceArrow);
     GotoState(State::Start);
-};
+}
 
 VirtualCrossbow::~VirtualCrossbow()
 {
     VRCR::g_VRManager->DestroyLocalOverlapObject(OverlapSphereID_PlaceArrow);
     GotoState(State::End);
     WriteStateToExtraData();
-};
+}
 
 void VirtualCrossbow::Update()
 {
@@ -35,49 +27,77 @@ void VirtualCrossbow::Update()
 
     if (grabAnim)
     {
-        auto crossbowGrab = getGrabNode();
         auto crossbowRot = getLeverRotNode();
-        auto weaponNode = getThisWeaponNode();
-        auto grabHand = getOtherHandNode();
-        auto grabController = getOtherControllerNode();
-
-        if (grabHand && crossbowGrab && crossbowRot)
+        if (crossbowRot)
         {
-            auto ctx = NiUpdateData();
 
-            // TODO: put in helper math function
-            // get angle between the rotation axis and the grabbing controller
-            NiPoint3 dvector = grabController->world.translate - crossbowRot->world.translate;
-            dvector = weaponNode->world.Invert().rotate * dvector;
-            float theta = atan2(-1.0 * dvector.z, dvector.y);
-
-            // update the lower limit of the rotation range
-            if (theta < grab_initialtheta)
+            if (reloadGrabState)
             {
-               // grab_initialtheta = theta;
+                // reload lever is currently being grabbed
+                auto crossbowGrab = getGrabNode();
+                auto weaponNode = getThisWeaponNode();
+                auto grabHand = getOtherHandNode();
+                auto grabController = getOtherControllerNode();
+
+                if (grabHand && crossbowGrab)
+                {
+
+                    // TODO: put in helper math function
+                    // get angle between the rotation axis and the grabbing controller
+                    NiPoint3 dvector = grabController->world.translate - crossbowRot->world.translate;
+                    dvector = weaponNode->world.Invert().rotate * dvector;
+                    AnimProgress_ReloadAngle = atan2(-1.0 * dvector.z, dvector.y);
+
+                    AnimProgress_ReloadAngle -= AnimProgress_ReloadAngle_initial;
+
+                    if (AnimProgress_ReloadAngle >= maxrot && state == State::Empty)
+                    {
+                        animator.RemoveAnimation(standard_reload);
+                        GotoState(State::Cocked);
+                    }
+
+                    NiPoint3 rot;
+                    auto ctx = NiUpdateData();
+                    crossbowRot->local.rotate.ToEulerAnglesXYZ(rot);
+                    rot.x = std::clamp(AnimProgress_ReloadAngle, minrot, maxrot);
+                    crossbowRot->local.rotate.SetEulerAnglesXYZ(rot);
+                    crossbowRot->Update(ctx);
+
+                    // update grab hand transform
+                    auto handTransform = grabHand->world;
+                    auto palmPos = handTransform * higgs_palmPosHandspace;
+                    auto desiredTransform = weaponNode->world;
+                    desiredTransform.translate += palmPos - crossbowGrab->world.translate;
+                    auto desiredTransformHandspace = handTransform.Invert() * desiredTransform;
+                    g_higgsInterface->SetGrabTransform(true, desiredTransformHandspace);
+                }
             }
             else
             {
-                theta -= grab_initialtheta;
+                // lever is not being grabbed but we aren't done animating
+
+                // TODO : accelerate based on framestep
+                if (AnimProgress_ReloadAngle > minrot)
+                {
+                    AnimProgress_ReloadAngle -= (maxrot - minrot) / 60;
+                    if (AnimProgress_ReloadAngle < minrot)
+                    {
+                        AnimProgress_ReloadAngle = minrot;
+                    }
+
+                    NiPoint3 rot;
+                    auto ctx = NiUpdateData();
+                    crossbowRot->local.rotate.ToEulerAnglesXYZ(rot);
+                    rot.x = std::clamp(AnimProgress_ReloadAngle, minrot, maxrot);
+                    crossbowRot->local.rotate.SetEulerAnglesXYZ(rot);
+                    crossbowRot->Update(ctx);
+                }
+                else
+                {
+                    animator.RemoveAnimation(standard_reload);
+                    grabAnim = false;
+                }
             }
-
-            const float maxrot = 0.6283185;
-            const float minrot = 0.01745329;
-            NiPoint3 rot;
-            crossbowRot->local.rotate.ToEulerAnglesXYZ(rot);
-            rot.x = std::clamp(theta, minrot, maxrot);
-            crossbowRot->local.rotate.SetEulerAnglesXYZ(rot);
-            crossbowRot->Update(ctx);
-
-            Reload_Progress = std::clamp((theta - minrot) / (maxrot - minrot), 0.0f, 1.0f);
-
-            // update grab hand transform
-            auto handTransform = grabHand->world;
-            auto palmPos = handTransform * higgs_palmPosHandspace;
-            auto desiredTransform = weaponNode->world;
-            desiredTransform.translate += palmPos - crossbowGrab->world.translate;
-            auto desiredTransformHandspace = handTransform.Invert() * desiredTransform;
-            g_higgsInterface->SetGrabTransform(true, desiredTransformHandspace);
         }
     }
 }
@@ -96,8 +116,8 @@ void VirtualCrossbow::OnGrabStart()
     SKSE::log::info("crossbow grab");
 
     // TODO: check hand orientation in addition to relative position
-    // hand above crossbow, reload
 
+    // hand above crossbow, reload
     if ((state == State::Empty || config_AllowAllActionsAlways) && weaponToHandHandspace.z > 1.f)
     {
         auto crossbowGrab = getGrabNode();
@@ -115,7 +135,7 @@ void VirtualCrossbow::OnGrabStart()
                 // get angle between the rotation axis and the grabbing controller
                 NiPoint3 dvector = grabController->world.translate - crossbowRot->world.translate;
                 dvector = weaponNode->world.Invert().rotate * dvector;
-                grab_initialtheta = atan2(-1.0 * dvector.z, dvector.y);
+                AnimProgress_ReloadAngle_initial = atan2(-1.0 * dvector.z, dvector.y);
 
                 auto handTransform = grabHand->world;
                 auto palmPos = handTransform * higgs_palmPosHandspace;
@@ -125,9 +145,8 @@ void VirtualCrossbow::OnGrabStart()
                 g_higgsInterface->SetGrabTransform(true, desiredTransformHandspace);
 
                 grabAnim = true;
-                bool help = animator.AddAnimation(standard_reload);
-                SKSE::log::info("success: {}", help);
-                //animator.AddAnimation(&standard_reload, &Reload_Progress, 0.01745329, 0.6283185);
+                reloadGrabState = true;
+                animator.AddAnimation(standard_reload, &AnimProgress_ReloadAngle, minrot, maxrot);
             }
             else
             {
@@ -136,9 +155,9 @@ void VirtualCrossbow::OnGrabStart()
         }
     }
 
-    else if (state == State::Loaded || config_AllowAllActionsAlways) // hand below crossbow, aim
+    // hand below crossbow, aim
+    else if (state == State::Loaded || config_AllowAllActionsAlways)
     {
-
         if (config_SavedAimGrabHandspace.scale > 0 &&
             grabHand->world.translate.GetDistance(weaponNode->world.translate + config_SavedAimGrabPosition) < config_InteractAimDistance)
         {
@@ -146,13 +165,16 @@ void VirtualCrossbow::OnGrabStart()
         }
         // TODO: set fingers
     }
-};
+}
 
 void VirtualCrossbow::OnGrabStop()
 {
-    grabAnim = false;
-    //animator.RemoveAnimation(standard_reload);
-};
+    if (grabAnim && reloadGrabState && state != State::Empty)
+    {
+        animator.RemoveAnimation(standard_reload);
+    }
+    reloadGrabState = false;
+}
 
 void VirtualCrossbow::OnOverlap(PapyrusVR::VROverlapEvent e, uint32_t id, PapyrusVR::VRDevice device)
 {
@@ -170,7 +192,7 @@ void VirtualCrossbow::OnOverlap(PapyrusVR::VROverlapEvent e, uint32_t id, Papyru
             }
         }
     }
-};
+}
 
 void VirtualCrossbow::OnAnimEvent()
 {
@@ -182,34 +204,41 @@ void VirtualCrossbow::OnAnimEvent()
     default:
         GotoState(State::Sheathed);
     }
-};
+}
 
 void VirtualCrossbow::OnPrimaryButtonPress(const vr::VRControllerState_t *out)
 {
     switch (state)
     {
     case State::Cocked:
+        // TODO:
         if (config_AllowAllActionsAlways)
         {
+            // block fire button from reaching the game
+            // out->ulButtonPressed
             FireDry();
         }
         break;
     case State::Loaded:
         Fire();
     }
-};
+}
 
 void VirtualCrossbow::Fire()
 {
     // play sound
     Fire::ArrowFromPoint(VRCR::g_player, getThisWeaponNode()->world, VRCR::g_player->GetEquippedObject(_hand)->As<RE::TESObjectWEAP>(), ammo);
     // queue up animation
-};
+    animator.AddAnimation(standard_reload, 0.0);
+}
 
-void VirtualCrossbow::FireDry(){
+void VirtualCrossbow::FireDry()
+{
     // play sound
     // queue up animation
-};
+    animator.AddAnimation(standard_reload, 0.0);
+    GotoState(State::Empty);
+}
 
 void VirtualCrossbow::CreateOverlapSpheres(uint32_t &PlaceArrow)
 {
@@ -221,7 +250,7 @@ void VirtualCrossbow::CreateOverlapSpheres(uint32_t &PlaceArrow)
     PapyrusVR::OpenVRUtils::CopyNiTrasformToMatrix34(&HeadToFeet, &transform);
     PlaceArrow = VRCR::g_VRManager->CreateLocalOverlapSphere(
         0.2f, &transform, _hand ? PapyrusVR::VRDevice_LeftController : PapyrusVR::VRDevice_RightController);
-};
+}
 
 void VirtualCrossbow::GotoState(State newstate)
 {
@@ -229,37 +258,38 @@ void VirtualCrossbow::GotoState(State newstate)
     prev_state = state;
     state = newstate;
     OnEnterState();
-};
+}
 
-void VirtualCrossbow::Unsheathe()
+void VirtualCrossbow::onUnsheathe()
 {
     if (state == State::Sheathed)
     {
         SKSE::log::info("{} crossbow draw", _hand ? "left" : "right");
         GotoState(prev_state);
     }
-};
+}
 
-void VirtualCrossbow::Sheathe()
+void VirtualCrossbow::onSheathe()
 {
     if (state != State::Sheathed)
     {
         GotoState(State::Sheathed);
         SKSE::log::info("{} crossbow sheathe", _hand ? "left" : "right");
     }
-};
+}
 
-void VirtualCrossbow::WriteStateToExtraData(){
-
-};
+void VirtualCrossbow::WriteStateToExtraData()
+{
+}
 
 void VirtualCrossbow::ReadStateFromExtraData()
 {
     GotoState(State::Empty);
-};
+}
 
 void VirtualCrossbow::OnEnterState()
 {
+    SKSE::log::info("OnEnterState {:d}", (int)state);
     switch (state)
     {
     case State::Start:
@@ -270,17 +300,18 @@ void VirtualCrossbow::OnEnterState()
     case State::Empty:
         if (prev_state == State::Start)
         {
-            // set animation
+            animator.AddAnimation(standard_reload, 0.0);
         }
         break;
     case State::Cocked:
         // can only get here from Empty or Holstered, either way we want to set animation
-        // set animation
+        animator.AddAnimation(standard_reload, 1.0);
         break;
     case State::Loaded:
         if (prev_state == State::Start)
         {
             // set animation
+            animator.AddAnimation(standard_reload, 1.0);
 
             // set ammo visibility
         }
@@ -288,7 +319,7 @@ void VirtualCrossbow::OnEnterState()
     case State::End:
         break;
     }
-};
+}
 
 void VirtualCrossbow::OnExitState()
 {
@@ -307,7 +338,7 @@ void VirtualCrossbow::OnExitState()
     case State::End:
         break;
     }
-};
+}
 
 RE::NiPointer<RE::NiNode> VirtualCrossbow::getThisHandNode()
 {
@@ -319,7 +350,7 @@ RE::NiPointer<RE::NiNode> VirtualCrossbow::getThisHandNode()
     {
         return VRCR::g_player->GetVRNodeData()->NPCRHnd;
     }
-};
+}
 RE::NiPointer<RE::NiNode> VirtualCrossbow::getOtherHandNode()
 {
     if (!_hand)
@@ -330,7 +361,7 @@ RE::NiPointer<RE::NiNode> VirtualCrossbow::getOtherHandNode()
     {
         return VRCR::g_player->GetVRNodeData()->NPCRHnd;
     }
-};
+}
 RE::NiPointer<RE::NiNode> VirtualCrossbow::getThisControllerNode()
 {
     if (_hand)
@@ -341,7 +372,7 @@ RE::NiPointer<RE::NiNode> VirtualCrossbow::getThisControllerNode()
     {
         return VRCR::g_player->GetVRNodeData()->RightValveIndexControllerNode;
     }
-};
+}
 RE::NiPointer<RE::NiNode> VirtualCrossbow::getOtherControllerNode()
 {
     if (!_hand)
@@ -352,7 +383,7 @@ RE::NiPointer<RE::NiNode> VirtualCrossbow::getOtherControllerNode()
     {
         return VRCR::g_player->GetVRNodeData()->RightValveIndexControllerNode;
     }
-};
+}
 RE::NiNode *VirtualCrossbow::getThisWeaponNode()
 {
     if (_hand)
@@ -380,7 +411,7 @@ RE::NiNode *VirtualCrossbow::getThisWeaponNode()
         }
     }
     return nullptr;
-};
+}
 RE::NiNode *VirtualCrossbow::getGrabNode()
 {
     auto node = getThisWeaponNode();
@@ -400,7 +431,7 @@ RE::NiNode *VirtualCrossbow::getGrabNode()
     {
         return nullptr;
     }
-};
+}
 RE::NiNode *VirtualCrossbow::getLeverRotNode()
 {
     auto node = getThisWeaponNode();
@@ -420,4 +451,4 @@ RE::NiNode *VirtualCrossbow::getLeverRotNode()
     {
         return nullptr;
     }
-};
+}

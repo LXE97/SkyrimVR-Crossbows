@@ -31,10 +31,14 @@ namespace Animation
     {
         ActiveAnimation() = default;
         ActiveAnimation(animType t, AnimationDefinition *a, double d) : type(t), def(a), StartTime(d) {}
-
+        ActiveAnimation(animType t, AnimationDefinition *a, float m, float mm, float *dr)
+            : type(t), def(a), Driver(dr), min(m), max(mm) {}
+        
         animType type;
         AnimationDefinition *def;
         double StartTime;
+        float *Driver;
+        float min, max;
     };
 
     class AnimationProcessor
@@ -44,6 +48,10 @@ namespace Animation
 
         // Timed
         bool AddAnimation(std::string &a);
+        // Static: ProprotionalTargetTime will be clamped from 0-1
+        bool AddAnimation(std::string &a, double ProportionalTargetTime);
+        // Driven
+        bool AddAnimation(std::string &a, float *Driver, float min, float max);
         void RemoveAnimation(std::string &a);
 
     private:
