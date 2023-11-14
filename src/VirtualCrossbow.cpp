@@ -125,7 +125,9 @@ void VirtualCrossbow::OnGrabStart()
                 g_higgsInterface->SetGrabTransform(true, desiredTransformHandspace);
 
                 grabAnim = true;
-                animator.AddAnimation(&standard_reload, &Reload_Progress, 0.01745329, 0.6283185);
+                bool help = animator.AddAnimation(standard_reload);
+                SKSE::log::info("success: {}", help);
+                //animator.AddAnimation(&standard_reload, &Reload_Progress, 0.01745329, 0.6283185);
             }
             else
             {

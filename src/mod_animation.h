@@ -17,31 +17,24 @@ namespace Animation
     // Read from the animations file at startup and stored in the data manager
     struct AnimationDefinition
     {
-        AnimationDefinition(std::string s, double d) : rootNodeName(s), StopTime(d) {}
+        AnimationDefinition() = default;
+        AnimationDefinition(std::string s, double d, animKeyframes a) : rootNodeName(s), StopTime(d), data(a) {}
+
         std::string rootNodeName;
         double StopTime;
-        // animKeyframes keyFrames;
-        //  TODO: make keyframes into arrays
-        //  std::vector<std::string> bones;
-        //  std::vector<std::pair<RE::NiQuaternion, float>> rotate;
-        //  std::vector<std::pair<RE::NiPoint3, float>> translate;
+
+        animKeyframes data;
     };
 
     // Created at runtime with parameters of the desired animation type
     struct ActiveAnimation
     {
-        ActiveAnimation(std::shared_ptr<AnimationDefinition> p,
-                        animType t, double d) : def(p), type(t), StartTime(d) {}
-        ActiveAnimation(std::shared_ptr<AnimationDefinition> p,
-                        animType t, double d, float *dd, float m, float mm) : def(p), type(t), StartTime(d), driver(dd), min(m), max(mm) {}
-
-        std::shared_ptr<AnimationDefinition> def;
+        ActiveAnimation() = default;
+        ActiveAnimation(animType t, AnimationDefinition *a, double d) : type(t), def(a), StartTime(d) {}
 
         animType type;
-        double StartTime; // represents target time for Static anims
-        float *driver;
-        float min;
-        float max;
+        AnimationDefinition *def;
+        double StartTime;
     };
 
     class AnimationProcessor
@@ -51,11 +44,6 @@ namespace Animation
 
         // Timed
         bool AddAnimation(std::string &a);
-        // Static- float should be between 0-1
-        bool AddAnimation(std::string &a, double scaledTime);
-        // Driven- tuple is &driving_value, min_value, max_value
-        bool AddAnimation(std::string *a, float *driver, float min, float max);
-
         void RemoveAnimation(std::string &a);
 
     private:
@@ -66,7 +54,7 @@ namespace Animation
     {
     public:
         bool ReadAnimationsFromFile();
-        bool GetAnimationDefinition(std::string &name, std::shared_ptr<AnimationDefinition> out);
+        bool GetAnimationDefinition(std::string &name, AnimationDefinition *&out);
 
         static AnimationDataManager *GetSingleton()
         {
@@ -75,7 +63,7 @@ namespace Animation
         }
 
     private:
-        std::unordered_map<std::string, std::shared_ptr<AnimationDefinition>> AnimationDefinitions;
+        std::unordered_map<std::string, AnimationDefinition> AnimationDefinitions;
     };
 
     inline double GetQPC() noexcept

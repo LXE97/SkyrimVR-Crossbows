@@ -77,7 +77,7 @@ private:
     void CreateOverlapSpheres(uint32_t &PlaceArrow);
 
     // Animation
-    const std::string standard_reload = "standard_reload";
+    std::string standard_reload = "standard_reload";
 
     float Reload_Progress = 0;
 };
