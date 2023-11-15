@@ -17,8 +17,9 @@
 #include "menuChecker.h"
 #include "mod_projectile.h"
 #include "mod_animation.h"
-#include "linalg.h"
+#include "helper_math.h"
 #include "VirtualCrossbow.h"
+#include "VRHolster.h"
 
 class AnimationDataManager;
 
@@ -36,7 +37,7 @@ namespace VRCR
 
     // temp config section
     extern RE::NiTransform config_SavedAimGrabHandspace;
-    extern RE::NiPoint3 config_SavedAimGrabPosition; 
+    extern RE::NiPoint3 config_SavedAimGrabPosition;
 
     /// Main plugin entry point/ initialization function
     void StartMod();
@@ -50,14 +51,18 @@ namespace VRCR
     void Update_PreHIGGS();
     void OverrideHiggsConfig();
     void RestoreHiggsConfig();
+    void OnOverlap(const vrinput::OverlapEvent &e);
 
-    // Custom event handlers
+    // Event handlers
     void onMenuOpenClose(const RE::MenuOpenCloseEvent *event);
     void onAnimEvent(const RE::BSAnimationGraphEvent *event);
     void onEquipEvent(const RE::TESEquipEvent *event);
     void onContainerChange(const RE::TESContainerChangedEvent *event);
+    void onGrabButtonPress(vr::VRControllerState_t *const out);
+    void onGrabButtonRelease(vr::VRControllerState_t *const out);
+
     void RegisterVRInputCallback();
 
     // Utilities
     inline RE::FormID getFullFormID(RE::FormID partial) { return thisPluginID << 24 | partial; }
-} // namespace VRExample
+}

@@ -1,6 +1,7 @@
 #pragma once
 #include "mod_projectile.h"
 #include "VRCR.h"
+#include "VRHolster.h"
 
 class AnimationProcessor;
 
@@ -31,7 +32,7 @@ public:
     void Update();
     void OnGrabStart();
     void OnGrabStop();
-    void OnOverlap(PapyrusVR::VROverlapEvent e, uint32_t id, PapyrusVR::VRDevice device);
+    void OnOverlap(const vrinput::OverlapEvent &e);
     void OnPrimaryButtonPress(const vr::VRControllerState_t *out);
     void OnAnimEvent();
     void onUnsheathe();
@@ -45,7 +46,7 @@ private:
     State state;
 
     RE::TESAmmo *ammo;
-    uint32_t OverlapSphereID_PlaceArrow;
+    int32_t OverlapSphereID_PlaceArrow;
     // animation related state variables and constants
     std::string standard_reload = "standard_reload";
     const float maxrot = 0.6283185;
@@ -58,7 +59,7 @@ private:
     // TODO: read from config file
     float config_InteractReloadDistance = 8;
     float config_InteractAimDistance = 8;
-    bool config_AllowAllActionsAlways = false;
+    bool config_AllowAllActionsAlways = true;
     RE::NiPoint3 higgs_palmPosHandspace = {0, -2.4, 6};
 
     // Node getters / ambidexterity support

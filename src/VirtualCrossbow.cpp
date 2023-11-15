@@ -33,6 +33,7 @@ void VirtualCrossbow::Update()
 
             if (reloadGrabState)
             {
+                
                 // reload lever is currently being grabbed
                 auto crossbowGrab = getGrabNode();
                 auto weaponNode = getThisWeaponNode();
@@ -172,17 +173,18 @@ void VirtualCrossbow::OnGrabStop()
     if (grabAnim && reloadGrabState && state != State::Empty)
     {
         animator.RemoveAnimation(standard_reload);
+        VRCR::RestoreHiggsConfig();
     }
-    reloadGrabState = false;
+    reloadGrabState = false;    
 }
 
-void VirtualCrossbow::OnOverlap(PapyrusVR::VROverlapEvent e, uint32_t id, PapyrusVR::VRDevice device)
+void VirtualCrossbow::OnOverlap(const vrinput::OverlapEvent &e)
 {
     using namespace RE;
     switch (state)
     {
     case State::Cocked:
-        if (id == OverlapSphereID_PlaceArrow)
+        if (e.ID == OverlapSphereID_PlaceArrow)
         {
             auto heldRef = g_higgsInterface->GetGrabbedObject(!_hand);
             if (heldRef && heldRef->IsAmmo() && heldRef->As<TESAmmo>()->IsBolt())
@@ -216,7 +218,7 @@ void VirtualCrossbow::OnPrimaryButtonPress(const vr::VRControllerState_t *out)
         {
             // block fire button from reaching the game
             // out->ulButtonPressed
-            FireDry();
+            Fire();
         }
         break;
     case State::Loaded:
@@ -227,7 +229,7 @@ void VirtualCrossbow::OnPrimaryButtonPress(const vr::VRControllerState_t *out)
 void VirtualCrossbow::Fire()
 {
     // play sound
-    Fire::ArrowFromPoint(VRCR::g_player, getThisWeaponNode()->world, VRCR::g_player->GetEquippedObject(_hand)->As<RE::TESObjectWEAP>(), ammo);
+    Fire::ArrowFromPoint(VRCR::g_player, getThisWeaponNode()->world, VRCR::g_player->GetEquippedObject(_hand)->As<RE::TESObjectWEAP>(), VRCR::g_player->GetCurrentAmmo());
     // queue up animation
     animator.AddAnimation(standard_reload, 0.0);
 }

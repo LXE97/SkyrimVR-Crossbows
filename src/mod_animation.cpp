@@ -138,8 +138,7 @@ namespace Animation
                         if (keys[i].second >= targetTime)
                         {
                             auto ctx = RE::NiUpdateData();
-                            RE::NiMatrix3 rotate = helper::slerpQuat(targetTime, prevFrame.first, keys[i].first);
-                            ninode->local.rotate = rotate;
+                            helper::slerpQuat(targetTime, prevFrame.first, keys[i].first, ninode->local.rotate);                            
                             ninode->Update(ctx);
 
                             finished = false;

@@ -1,12 +1,33 @@
 #pragma once
 #include <algorithm>
+
 namespace helper
 {
+    // get rotation about Z axis while ignoring other rotations
+    inline float GetAzimuth(RE::NiMatrix3 &rot)
+    {
+        if (std::abs(rot.entry[2][1]) < 0.9995f)
+        {
+            return std::atan2(rot.entry[0][1], rot.entry[1][1]);
+        }
+        else
+        {
+            return -1.0f * std::atan2(rot.entry[1][0], rot.entry[0][0]);
+        }
+    }
+    // same but X axis
+    inline float GetElevation(RE::NiMatrix3 &rot)
+    {
+        return -1.0f * std::asin(std::clamp(rot.entry[2][1], -1.0f, 1.0f));
+    }
+
+    void RotateZ(RE::NiPoint3 &target, RE::NiMatrix3 &rotator);
+
+    // vector stuff from higgs
     inline float VectorLengthSquared(const RE::NiPoint3 &vec) { return vec.x * vec.x + vec.y * vec.y + vec.z * vec.z; }
     inline float VectorLength(const RE::NiPoint3 &vec) { return sqrtf(VectorLengthSquared(vec)); }
     inline float dotProduct(const RE::NiPoint3 &x, const RE::NiPoint3 &y) { return x.x * y.x + x.y * y.y + x.z * y.z; }
     inline float DotProductSafe(const RE::NiPoint3 &vec1, const RE::NiPoint3 &vec2) { return std::clamp(dotProduct(vec1, vec2), -1.f, 1.f); }
-
     inline RE::NiPoint3 VectorNormalized(const RE::NiPoint3 &vec)
     {
         float length = VectorLength(vec);
@@ -14,8 +35,9 @@ namespace helper
     }
 
     RE::NiPoint3 GetPalmVectorWS(RE::NiMatrix3 &handRotation, bool isLeft);
-
     RE::NiPoint3 GetThumbVector(RE::NiMatrix3 &handRotation);
+
+    // matrix stuff
 
     inline void Quat2Mat(RE::NiMatrix3 &matrix, RE::NiQuaternion &quaternion)
     {
@@ -44,8 +66,7 @@ namespace helper
         matrix.entry[2][2] = 1 - 2 * (xx + yy);
     }
 
-    // modified from above
-    static inline RE::NiMatrix3 slerpQuat(float interp, RE::NiQuaternion q1, RE::NiQuaternion q2)
+    inline void slerpQuat(float interp, RE::NiQuaternion &q1, RE::NiQuaternion &q2, RE::NiMatrix3 &out)
     {
         // Convert mat1 to a quaternion
         float q1w = q1.w;
@@ -101,16 +122,14 @@ namespace helper
         }
 
         // Convert the new quaternion back to a matrix
-        RE::NiMatrix3 result;
-        result.entry[0][0] = 1 - (2 * q3y * q3y) - (2 * q3z * q3z);
-        result.entry[0][1] = (2 * q3x * q3y) - (2 * q3z * q3w);
-        result.entry[0][2] = (2 * q3x * q3z) + (2 * q3y * q3w);
-        result.entry[1][0] = (2 * q3x * q3y) + (2 * q3z * q3w);
-        result.entry[1][1] = 1 - (2 * q3x * q3x) - (2 * q3z * q3z);
-        result.entry[1][2] = (2 * q3y * q3z) - (2 * q3x * q3w);
-        result.entry[2][0] = (2 * q3x * q3z) - (2 * q3y * q3w);
-        result.entry[2][1] = (2 * q3y * q3z) + (2 * q3x * q3w);
-        result.entry[2][2] = 1 - (2 * q3x * q3x) - (2 * q3y * q3y);
-        return result;
+        out.entry[0][0] = 1 - (2 * q3y * q3y) - (2 * q3z * q3z);
+        out.entry[0][1] = (2 * q3x * q3y) - (2 * q3z * q3w);
+        out.entry[0][2] = (2 * q3x * q3z) + (2 * q3y * q3w);
+        out.entry[1][0] = (2 * q3x * q3y) + (2 * q3z * q3w);
+        out.entry[1][1] = 1 - (2 * q3x * q3x) - (2 * q3z * q3z);
+        out.entry[1][2] = (2 * q3y * q3z) - (2 * q3x * q3w);
+        out.entry[2][0] = (2 * q3x * q3z) - (2 * q3y * q3w);
+        out.entry[2][1] = (2 * q3y * q3z) + (2 * q3x * q3w);
+        out.entry[2][2] = 1 - (2 * q3x * q3x) - (2 * q3y * q3y);
     }
 }

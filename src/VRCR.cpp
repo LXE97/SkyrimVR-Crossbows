@@ -1,4 +1,5 @@
 #include "VRCR.h"
+#include "RE/N/NiRTTI.h"
 
 namespace VRCR
 {
@@ -8,29 +9,44 @@ namespace VRCR
     // constants
     constexpr FormID playerID = 0x14;
 
-    uint8_t thisPluginID = 0;
+    // engine constants
+    BGSEquipSlot *equipRight;
+    BGSEquipSlot *equipBoth;
+
+    uint8_t thisPluginID;
     PlayerCharacter *g_player;
-    RE::TESAmmo *g_ammoToGrab;
+    TESAmmo *g_ammoToGrab;
     SKSE::detail::SKSETaskInterface *g_task;
     OpenVRHookManagerAPI *g_OVRHookManager;
     PapyrusVR::VRManagerAPI *g_VRManager;
-    LARGE_INTEGER h;
     vr::TrackedDeviceIndex_t l_controller;
     vr::TrackedDeviceIndex_t r_controller;
     VirtualCrossbow *Crossbows[2] = {nullptr, nullptr};
+    bool g_isVrikPresent;
 
-    bool animateReload = false;
+    // misc
+    PapyrusVR::Matrix34 g_holstertransform;
+    bool g_GrabbingHolster;
 
+    // TODO debug section
+    vrinput::OverlapSphereManager coolguy = vrinput::OverlapSphereManager(&OnOverlap);
+    std::string debugHolsterNodeName = "DEBUGDRAWSPHERE";
+    float debugRadius = 1;
+    NiPoint3 debugHolsterPos;
+    int32_t debugHolsterSphereHndl;
+    BSPointerHandle<Projectile> debugHolster3DHndl;
+    auto TURNON = new NiColor(0xFF0000);
+    auto TURNOFF = new NiColor(0x00FF00);
+    FormID debugHolsterProjFormID = 0x00A83D;
+
+    // TODO: configurize temp config section
     NiPoint3 config_SavedAimGrabPosition;
     NiTransform config_SavedAimGrabHandspace;
     float g_SavedAimFingers[5] = {};
     NiPoint3 higgs_palmPosHandspace;
     float g_initialtheta = 0;
-    uint32_t g_HolsterSphere;
-
-    // temp config section
     vr::EVRButtonId config_SecondaryBtn = vr::k_EButton_A;
-    vr::EVRButtonId config_interactBtn2 = vr::k_EButton_Knuckles_B;
+    vr::EVRButtonId config_PrimaryBtn = vr::k_EButton_SteamVR_Trigger;
     std::unordered_map<std::string, double> higgs_ConfigOverride = {
         {"twoHandedHandToHandAlignmentFactor", 0.0},
         {"twoHandedHandToHandShiftFactor", 0.1},
@@ -38,18 +54,18 @@ namespace VRCR
         {"twoHandedHandToHandRotationFactor", 0.0}};
     auto higgs_SaveConfig = higgs_ConfigOverride;
 
-    // inventory things
-    BGSEquipSlot *equipRight;
-    BGSEquipSlot *equipBoth;
-
-    bool g_isVrikPresent = false;
-
     void PreHiggsUpdate()
     {
+        if (0 && debugHolster3DHndl){
+            NiPoint3 moveto = debugHolsterPos;
+            helper::RotateZ(moveto, g_player->GetVRNodeData()->UprightHmdNode->world.rotate);
+            debugHolster3DHndl.get()->SetPosition(moveto);
+        }
         for (auto wpn : Crossbows)
         {
             wpn ? wpn->Update() : void();
         }
+        coolguy.Update();
     }
 
     // HIGGS two hand event handlers
@@ -69,6 +85,64 @@ namespace VRCR
         }
     }
 
+    // Button presses
+
+    void onDEBUGBtnPressA(vr::VRControllerState_t *const out)
+    {
+        SKSE::log::info("holster show");
+        if (!debugHolster3DHndl)
+        {
+            auto proj = TESForm::LookupByID<BGSProjectile>(0x1F00A83D);
+            debugHolster3DHndl = Fire::SillyLittleProjectile(g_player, g_player->GetVRNodeData()->RightWandNode->world.translate, proj);
+            debugHolster3DHndl.get()->GetProjectileRuntimeData().velocity = {0, 0, 0};
+            NiPoint3 moveto = debugHolsterPos;
+            helper::RotateZ(moveto, g_player->GetVRNodeData()->UprightHmdNode->world.rotate);
+            debugHolster3DHndl.get()->SetPosition(moveto);
+
+        }
+    }
+
+    void onDEBUGBtnPressB(vr::VRControllerState_t *const out)
+    {
+        SKSE::log::info("holster radius + 1.0");
+        if (auto proj = debugHolster3DHndl.get())
+        {
+            SKSE::log::info("got proj pointer");
+            if (auto proj3D = proj->Get3D())
+            {
+                proj3D->world.scale += 1.0;
+            }
+        }
+    }
+
+    void onPrimaryCrossbowButtonPress(vr::VRControllerState_t *const out)
+    {
+        SKSE::log::info("fire button pressed");
+        for (auto wpn : Crossbows)
+        {
+            if (wpn)
+            {
+                wpn ? wpn->OnPrimaryButtonPress(out) : void();
+            }
+        }
+    }
+
+    void onGrabButtonPress(vr::VRControllerState_t *const out)
+    {
+        SKSE::log::info("holster grabbed");
+        // we already know we are overlapping
+    }
+
+    void onGrabButtonRelease(vr::VRControllerState_t *const out)
+    {
+
+        SKSE::log::info("holster released");
+
+        // get the difference from initial position to current position
+
+        // copy new transform
+    }
+
     void onSecondaryBtnPress()
     {
         if (!MenuChecker::isGameStopped())
@@ -78,25 +152,28 @@ namespace VRCR
 
     void onHolsterBtnPress(vr::VRControllerState_t *const out)
     {
-        if (g_higgsInterface->CanGrabObject(Left))
+        if (!MenuChecker::isGameStopped())
         {
-            SKSE::log::info("LA grab ok");
-            auto ammoToGrab = g_player->GetCurrentAmmo();
-            if (ammoToGrab)
+            if (g_higgsInterface->CanGrabObject(Left))
             {
-                RE::NiPoint3 droploc = g_player->GetVRNodeData()->LeftWandNode->world.translate;
-                // auto droppedAmmoHandle = g_player->DropObject(g_ammoToGrab, nullptr, 1, &droploc); //, g_player->GetVRNodeData()->LeftWandNode->world.translate);
-                auto droppedHandle = g_player->RemoveItem(ammoToGrab, 1, ITEM_REMOVE_REASON::kDropping, nullptr, nullptr, &droploc);
-                if (droppedHandle)
+                SKSE::log::info("LA grab ok");
+                auto ammoToGrab = g_player->GetCurrentAmmo();
+                if (ammoToGrab)
                 {
-                    SKSE::log::info("dropped ammo");
-                    g_higgsInterface->GrabObject(droppedHandle.get().get(), Left);
+                    RE::NiPoint3 droploc = g_player->GetVRNodeData()->LeftWandNode->world.translate;
+                    // auto droppedAmmoHandle = g_player->DropObject(g_ammoToGrab, nullptr, 1, &droploc); //, g_player->GetVRNodeData()->LeftWandNode->world.translate);
+                    auto droppedHandle = g_player->RemoveItem(ammoToGrab, 1, ITEM_REMOVE_REASON::kDropping, nullptr, nullptr, &droploc);
+                    if (droppedHandle)
+                    {
+                        SKSE::log::info("dropped ammo");
+                        g_higgsInterface->GrabObject(droppedHandle.get().get(), Left);
+                    }
                 }
             }
-        }
-        else
-        {
-            SKSE::log::info("no LA grab bad");
+            else
+            {
+                SKSE::log::info("no LA grab bad");
+            }
         }
     }
 
@@ -119,7 +196,6 @@ namespace VRCR
          }*/
     }
 
-    // weapon draw/sheathe event handler
     void onWeaponDraw(const SKSE::ActionEvent *event)
     {
         if (g_player && g_player->As<TESObjectREFR>() == event->actor)
@@ -142,7 +218,6 @@ namespace VRCR
         }
     }
 
-    // Equip event handler
     void onEquipEvent(const TESEquipEvent *event)
     {
         SKSE::log::info("equip event: getting actor");
@@ -227,7 +302,7 @@ namespace VRCR
                 SKSE::log::info("item: {:X}", event->reference.get()->formID);
             }
 
-            // get the extra data from the dupe
+            // TODO : get the extra data from the dupe
 
             /*
             auto f = event->reference.get()->extraList;
@@ -255,26 +330,28 @@ namespace VRCR
         }
     }
 
-    void onOverlap(PapyrusVR::VROverlapEvent e, uint32_t id, PapyrusVR::VRDevice device)
+    void OnOverlap(const OverlapEvent &e)
     {
-        if (id == g_HolsterSphere && device == PapyrusVR::VRDevice_LeftController)
+        if (e.ID == debugHolsterSphereHndl && e.isLeft)
         {
-            if (e == PapyrusVR::VROverlapEvent_OnEnter)
+            if (e.entered)
             {
-                SKSE::log::info("overlap holster enter");
+                SKSE::log::info("HOLSTER : XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
                 vrinput::AddCallback(config_SecondaryBtn, onHolsterBtnPress, Left, Press, ButtonDown);
+                vrinput::AddCallback(vr::k_EButton_ApplicationMenu, onGrabButtonPress, Right, Press, ButtonDown);
             }
-            else if (e == PapyrusVR::VROverlapEvent_OnExit)
+            else
             {
-                SKSE::log::info("overlap holster exit");
+                SKSE::log::info("HOLSTER :                  000000000000");
                 vrinput::RemoveCallback(config_SecondaryBtn, onHolsterBtnPress, Left, Press, ButtonDown);
+                vrinput::RemoveCallback(vr::k_EButton_ApplicationMenu, onGrabButtonPress, Right, Press, ButtonDown);
             }
         }
         else
         {
             for (auto wpn : Crossbows)
             {
-                wpn ? wpn->OnOverlap(e, id, device) : void();
+                wpn ? wpn->OnOverlap(e) : void();
             }
         }
     }
@@ -328,39 +405,6 @@ namespace VRCR
         */
     }
 
-    void onTestButtonPress(vr::VRControllerState_t *const out)
-    {
-        for (auto wpn : Crossbows)
-        {
-            if (wpn)
-            {
-                SKSE::log::info("{} crossbow state {}", wpn->GetHand() ? "left" : "right", (int)wpn->GetState());
-            }
-        }
-    }
-
-    void onPrimaryCrossbowButtonPress(vr::VRControllerState_t *const out)
-    {
-        SKSE::log::info("fire button pressed");
-        for (auto wpn : Crossbows)
-        {
-            if (wpn)
-            {
-                wpn ? wpn->OnPrimaryButtonPress(out) : void();
-            }
-        }
-    }
-
-    void onGrabButtonPress(vr::VRControllerState_t *const out)
-    {
-        // we already know we are overlapping
-    }
-
-    void onGrabButtonRelease(vr::VRControllerState_t *const out)
-    {
-        // get the difference from initial position to current position
-    }
-
     void StartMod()
     {
         SKSE::log::info("StartMod entry");
@@ -412,21 +456,21 @@ namespace VRCR
         ScriptEventSourceHolder::GetSingleton()->AddEventSink(equipSink);
         equipSink->AddCallback(onEquipEvent);
 
-        g_VRManager->RegisterVROverlapListener(onOverlap);
+        
+        coolguy.Create(g_player->GetVRNodeData()->UprightHmdNode.get(), &debugHolsterPos, &debugRadius);
 
-        vrinput::AddCallback(vr::k_EButton_A, onTestButtonPress, Right, Press, ButtonDown);
+        vrinput::AddCallback(vr::k_EButton_A, onDEBUGBtnPressA, Right, Press, ButtonDown);
+        vrinput::AddCallback(vr::k_EButton_ApplicationMenu, onDEBUGBtnPressB, Right, Press, ButtonDown);
         vrinput::AddCallback(vr::k_EButton_SteamVR_Trigger, onPrimaryCrossbowButtonPress, Right, Press, ButtonDown);
 
-        // PapyrusVR::Matrix34 transform;
-        // NiTransform HeadToFeet;
-        // HeadToFeet.translate = g_player->GetVRNodeData()->PlayerWorldNode->world.translate - g_player->GetVRNodeData()->UprightHmdNode->world.translate;
-        // PapyrusVR::OpenVRUtils::CopyNiTrasformToMatrix34(&HeadToFeet, &transform);
-        // g_HolsterSphere = VRCR::g_VRManager->CreateLocalOverlapSphere(0.2f, &transform, PapyrusVR::VRDevice_HMD);
+        // TEMP: figure out holster position
+        vrinput::AddCallback(vr::k_EButton_ApplicationMenu, onGrabButtonRelease, Right, Press, ButtonUp);
     }
 
     void GameLoad()
     {
         g_player = PlayerCharacter::GetSingleton();
+        // RE::BSPointerHandle<RE::Projectile> debugDRAW = Fire::ArrowFromPoint(            g_player,g_player->GetVRNodeData()->ArrowFireNode->world, )
 
         if (Crossbows[Right])
         {
@@ -442,7 +486,6 @@ namespace VRCR
 
     void PreGameLoad()
     {
-        // g_equipSink->RemoveCallback(onEquipEvent);
     }
 
     // handles low level button/trigger events
