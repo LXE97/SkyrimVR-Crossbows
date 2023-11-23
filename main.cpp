@@ -1,5 +1,7 @@
-#include <spdlog/sinks/basic_file_sink.h>
+#undef ENABLE_SKYRIM_AE
+#undef ENABLE_SKYRIM_SE
 
+#include <spdlog/sinks/basic_file_sink.h>
 #include "SKSE/API.h"
 #include "SKSE/Impl/Stubs.h"
 #include "VRCR.h"

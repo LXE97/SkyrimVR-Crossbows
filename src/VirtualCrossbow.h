@@ -33,7 +33,7 @@ public:
     void OnGrabStart();
     void OnGrabStop();
     void OnOverlap(const vrinput::OverlapEvent &e);
-    void OnPrimaryButtonPress(const vr::VRControllerState_t *out);
+    bool OnPrimaryButtonPress();
     void OnAnimEvent();
     void onUnsheathe();
     void onSheathe();

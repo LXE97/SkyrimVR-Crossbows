@@ -45,9 +45,14 @@ namespace MenuChecker
 
     void begin()
     {
-        auto menuSink = EventSink<RE::MenuOpenCloseEvent>::GetSingleton();
-        menuSink->AddCallback(onMenuOpenClose);
-        RE::UI::GetSingleton()->AddEventSink(menuSink);
+        static bool runOnce = true;
+        if (runOnce)
+        {
+            auto menuSink = EventSink<RE::MenuOpenCloseEvent>::GetSingleton();
+            menuSink->AddCallback(onMenuOpenClose);
+            RE::UI::GetSingleton()->AddEventSink(menuSink);
+            runOnce = false;
+        }
     }
 
     std::vector<std::string> gameStoppingMenus{

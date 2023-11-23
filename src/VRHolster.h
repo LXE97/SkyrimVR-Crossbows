@@ -4,8 +4,7 @@ namespace vrinput
 {
     struct OverlapEvent
     {
-        OverlapEvent(int32_t i, bool b, bool bb) :
-        ID(i), entered(b), isLeft(bb) {}
+        OverlapEvent(int32_t i, bool b, bool bb) : ID(i), entered(b), isLeft(bb) {}
         int32_t ID;
         bool entered;
         bool isLeft;
@@ -16,13 +15,14 @@ namespace vrinput
     class OverlapSphereManager
     {
     public:
+        OverlapSphereManager() = default;
         OverlapSphereManager(OverlapCallback cb);
 
         void Update();
 
         // If followRotation is true it will move as if a child of the attachNode, if false it will only
         // track the compass rotation (Heading / world Z-axis rotation)
-        int32_t Create(RE::NiNode *attachNode, RE::NiPoint3 *localPosition, float *squaredradius, bool followRotation = false);
+        int32_t Create(RE::NiNode *attachNode, RE::NiPoint3 *localPosition, float radius, bool followRotation = false);
         void Destroy(int32_t targetID);
 
     private:
@@ -33,12 +33,12 @@ namespace vrinput
         struct OverlapSphere
         {
         public:
-            OverlapSphere(RE::NiNode *attachNode, RE::NiPoint3 *localPosition, float *squaredRadius, int32_t ID, bool followRotation = false)
-                : attachNode(attachNode), localPosition(localPosition), squaredRadius(squaredRadius), ID(ID), followRotation(followRotation) {}
+            OverlapSphere(RE::NiNode *attachNode, RE::NiPoint3 *localPosition, float radius, int32_t ID, bool followRotation = false)
+                : attachNode(attachNode), localPosition(localPosition), squaredRadius(radius * radius), ID(ID), followRotation(followRotation) {}
 
             RE::NiNode *attachNode;
             RE::NiPoint3 *localPosition;
-            float *squaredRadius;
+            float squaredRadius;
             bool followRotation;
             int32_t ID;
             bool overlapState[2];

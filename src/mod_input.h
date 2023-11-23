@@ -1,5 +1,4 @@
 #pragma once
-#include <initializer_list>
 #include "VR/PapyrusVRAPI.h"
 
 namespace vrinput
@@ -22,9 +21,11 @@ namespace vrinput
         vr::k_EButton_SteamVR_Trigger
     };
 
-    // decision to block controller input to the game is made inside the callback, because we don't want to block it
-    // if e.g. a menu is open or the action bound to this input is not applicable
-    typedef void (*InputCallbackFunc)(vr::VRControllerState_t *const out);
+    // returns: true if input that triggered the event should be blocked
+    // Decision to block controller input to the game is made inside the callback, because we don't want to block it
+    // if e.g. a menu is open or the action bound to this input is not applicable.
+    // If the press is blocked, then we don't need to block the release
+    typedef bool (*InputCallbackFunc)();
 
     void AddCallback(const vr::EVRButtonId button, InputCallbackFunc callback, bool isLeft, bool onTouch, bool onButtonDown);
     void RemoveCallback(const vr::EVRButtonId button, InputCallbackFunc callback, bool isLeft, bool onTouch, bool onButtonDown);

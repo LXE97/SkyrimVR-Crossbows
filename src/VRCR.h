@@ -58,8 +58,8 @@ namespace VRCR
     void onAnimEvent(const RE::BSAnimationGraphEvent *event);
     void onEquipEvent(const RE::TESEquipEvent *event);
     void onContainerChange(const RE::TESContainerChangedEvent *event);
-    void onGrabButtonPress(vr::VRControllerState_t *const out);
-    void onGrabButtonRelease(vr::VRControllerState_t *const out);
+    bool onGrabButtonPress(vr::VRControllerState_t *const out);
+    bool onGrabButtonRelease(vr::VRControllerState_t *const out);
 
     void RegisterVRInputCallback();
 

@@ -208,7 +208,7 @@ void VirtualCrossbow::OnAnimEvent()
     }
 }
 
-void VirtualCrossbow::OnPrimaryButtonPress(const vr::VRControllerState_t *out)
+bool VirtualCrossbow::OnPrimaryButtonPress()
 {
     switch (state)
     {
@@ -219,11 +219,14 @@ void VirtualCrossbow::OnPrimaryButtonPress(const vr::VRControllerState_t *out)
             // block fire button from reaching the game
             // out->ulButtonPressed
             Fire();
+            return true;
         }
         break;
     case State::Loaded:
         Fire();
+        return true;
     }
+    return false;
 }
 
 void VirtualCrossbow::Fire()

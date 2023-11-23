@@ -27,7 +27,6 @@ namespace vrinput
                     }
                     else
                     {
-
                         RE::NiPoint3 rotated = *s.localPosition;
                         helper::RotateZ(rotated, s.attachNode->world.rotate);
                         sphereWorld = s.attachNode->world.translate + rotated;
@@ -35,7 +34,7 @@ namespace vrinput
 
                     for (auto isLeft : {false, true})
                     {
-                        if (sphereWorld.GetSquaredDistance(controllers[isLeft]->world.translate) < *s.squaredRadius && !s.overlapState[isLeft])
+                        if (sphereWorld.GetSquaredDistance(controllers[isLeft]->world.translate) < s.squaredRadius && !s.overlapState[isLeft])
                         {
                             s.overlapState[isLeft] = true;
                             OverlapEvent e = OverlapEvent(s.ID, true, isLeft);
@@ -53,11 +52,11 @@ namespace vrinput
         }
     }
 
-    int32_t OverlapSphereManager::Create(RE::NiNode *attachNode, RE::NiPoint3 *localPosition, float *squaredradius, bool followRotation)
+    int32_t OverlapSphereManager::Create(RE::NiNode *attachNode, RE::NiPoint3 *localPosition, float radius, bool followRotation)
     {
         if (attachNode && localPosition)
         {
-            spheres.push_back(OverlapSphere(attachNode, localPosition, squaredradius, next_ID, followRotation));
+            spheres.push_back(OverlapSphere(attachNode, localPosition, radius, next_ID, followRotation));
             return next_ID++;
         }
         else

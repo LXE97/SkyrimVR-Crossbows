@@ -58,7 +58,7 @@ namespace Fire
         }
     }
 
-    RE::BSPointerHandle<RE::Projectile> SillyLittleProjectile(RE::Actor *akSource, RE::NiPoint3 originpos, RE::BGSProjectile *proj)
+    RE::BSPointerHandle<RE::Projectile> SpawnProjectile(RE::Actor *akSource, RE::NiPoint3 originpos, RE::BGSProjectile *proj)
     {
         if (proj)
         {RE::Projectile::LaunchData ldata;
