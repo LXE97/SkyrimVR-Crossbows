@@ -58,15 +58,17 @@ namespace VRCR
 
     void PreHiggsUpdate()
     {
-        if (debugptr && g_print)
-        {
-            NiUpdateData ctx;
-            debugptr->data.location = g_player->GetVRNodeData()->LeftWandNode->world.translate;
-            SKSE::log::info("{}", debugptr->data.location.x);
-            debugptr->Update3DPosition(false);
-            debugptr->Update3D();
+        if (g_print)
+        { 
+            // DEBUG : update holster sphere position
+            auto targetNode = g_player->Get3D(true)->GetObjectByName("SPHEREATTACH");
+            auto destNode = g_player->GetVRNodeData()->LeftWandNode;
+            auto srcNode = g_player->Get3D(true)->GetObjectByName("NPC Root [Root]");
 
-            debugHolster3DHndl.get()->GetProjectileRuntimeData().velocity = {0, 0, 0};
+            auto translate = destNode->world.translate - srcNode->world.translate;
+            translate = srcNode->world.Invert().rotate * translate;
+            targetNode->local.translate = translate;
+
         }
         // coolguy.Update();
     }
@@ -95,24 +97,16 @@ namespace VRCR
         SKSE::log::info("A press ");
         if (!MenuChecker::isGameStopped())
         {
+
+            // DEBUG: show holster sphere
             SKSE::log::info("casting spell");
-            auto spell = debugSphereSpell; // TESForm::LookupByID<SpellItem>(0x002f3b8);
+            auto spell = debugSphereSpell; 
             if (spell)
             {
                 auto caster = g_player->GetMagicCaster(RE::MagicSystem::CastingSource::kInstant);
                 if (caster)
                 {
                     caster->CastSpellImmediate(spell, false, g_player, 1.0, false, 1.0, g_player);
-                    auto node = g_player->GetNodeByName("SPHEREATTACH");
-                    long i = 0;
-                    while (g_player->GetNodeByName("SPHEREATTACH") == nullptr)
-                    {
-                        
-                        //SKSE::log::info("looping");
-                        Sleep(1);
-                        if (i++ > 10000){break;}
-                    };
-                    SKSE::log::info("{}",i);
                 }
             }
             return true;
@@ -145,43 +139,41 @@ namespace VRCR
     {
         if (!MenuChecker::isGameStopped())
         {
-            // TODO: now we have to make proxied crossbow callback functions return bool to see if THEY want to block the input...
             SKSE::log::info("fire button pressed");
 
-            auto node = g_player->GetNodeByName("DEBUGDRAWSPHERE");
-            while (!node)
-            {
-            };
+            // DEBUG section: move holster spheres
 
-            if (auto targetnode = g_player->Get3D(true)->GetObjectByName("NPC"))
+            // find sphere node
+            auto node = g_player->Get3D(true)->GetObjectByName("SPHEREATTACH");
+            if (node)
             {
-                SKSE::log::info("yep2");
-                targetnode->AsNode()->AttachChild(node);
-                auto ctx = NiUpdateData();
-                targetnode->Update(ctx);
-                // node->Update(ctx);
+                // move to target node
+                auto root = g_player->Get3D(true)->GetObjectByName("NPC Root [Root]");
+                // auto Lhand = g_player->GetVRNodeData()->UprightHmdNode;
+                if (root)
+                {
+                    root->AsNode()->AttachChild(node);
+                }
+                else
+                {
+                    SKSE::log::info("attach node not found");
+                }
             }
 
             auto pp = g_player->GetHandle();
             auto eff = TESForm::LookupByID<EffectSetting>(getFullFormID(0x23D3F));
-            if (g_player->GetMagicTarget()->HasMagicEffect(TESForm::LookupByID<EffectSetting>(getFullFormID(0x23D3F))))
+            if (g_player->GetMagicTarget()->HasMagicEffect(eff))
             {
                 g_player->GetMagicTarget()->DispelEffect(debugSphereSpell, pp);
                 SKSE::log::info("yes its true");
             }
 
-            if (auto targetnode = g_player->Get3D(true)->GetObjectByName("DEBUGDRAWSPHERE"))
-            {
-                SKSE::log::info("yes its true2");
-            }
+            SKSE::log::info("debug draw sphere over ");
 
-            bool blocking = true;
+            bool blocking = false;
             for (auto wpn : Crossbows)
             {
-                if (wpn)
-                {
-                    blocking = wpn ? wpn->OnPrimaryButtonPress() : false;
-                }
+                blocking = wpn ? wpn->OnPrimaryButtonPress() : false;
             }
             return blocking;
         }
@@ -350,7 +342,7 @@ namespace VRCR
          }*/
     }
 
-    // Watches the player inventory and swaps any crossbows with a duplicate that's set to one handed, for player use only.
+    // TODO: Watch the player inventory and swaps any crossbows with a duplicate that's set to one handed, for player use only.
     void onContainerChange(const TESContainerChangedEvent *event)
     {
         SKSE::log::info("container event: {}", event->newContainer);
@@ -543,18 +535,6 @@ namespace VRCR
     void GameLoad()
     {
         g_player = PlayerCharacter::GetSingleton();
-        // RE::BSPointerHandle<RE::Projectile> debugDRAW = Fire::ArrowFromPoint(            g_player,g_player->GetVRNodeData()->ArrowFireNode->world, )
-        /*
-                if (Crossbows[Right])
-                {
-                    delete Crossbows[Right];
-                    Crossbows[Right] = nullptr;
-                }
-                if (Crossbows[Left])
-                {
-                    delete Crossbows[Left];
-                    Crossbows[Left] = nullptr;
-                }*/
     }
 
     void PreGameLoad()

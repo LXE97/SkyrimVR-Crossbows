@@ -1,4 +1,4 @@
-## SKSE plugin source for Skyrim mod: VR Crossbows Reloaded
+## (WIP) SKSE plugin source for Skyrim mod: VR Crossbows Reloaded
 
 ## Build instructions:
 1. install [vcpkg](https://github.com/microsoft/vcpkg)
