@@ -1,25 +1,19 @@
 #pragma once
-#pragma warning(disable : 4100)
-#pragma warning(disable : 4244)
-#pragma warning(disable : 4305)
-#include <cmath>
-#include <algorithm>
-#include "SKSE/Impl/Stubs.h"
 
+#include "higgsinterface001.h"
+#include "vrikinterface001.h"
+#include "RE/N/NiRTTI.h"
+#include "SKSE/Impl/Stubs.h"
 #include "VR/PapyrusVRAPI.h"
 #include "VR/VRManagerAPI.h"
 #include "VR/OpenVRUtils.h"
-#include "higgsinterface001.h"
-#include "vrikinterface001.h"
+#include "VirtualCrossbow.h"
+#include "VRHolster.h"
 
 #include "mod_input.h"
 #include "mod_eventSink.hpp"
-#include "menuChecker.h"
 #include "mod_projectile.h"
 #include "mod_animation.h"
-#include "helper_math.h"
-#include "VirtualCrossbow.h"
-#include "VRHolster.h"
 
 class AnimationDataManager;
 
@@ -51,6 +45,7 @@ namespace VRCR
     void Update_PreHIGGS();
     void OverrideHiggsConfig();
     void RestoreHiggsConfig();
+
     void OnOverlap(const vrinput::OverlapEvent &e);
 
     // Event handlers
@@ -65,4 +60,15 @@ namespace VRCR
 
     // Utilities
     inline RE::FormID getFullFormID(RE::FormID partial) { return thisPluginID << 24 | partial; }
+    inline double GetQPC() noexcept
+    {
+        LARGE_INTEGER f, i;
+        if (QueryPerformanceCounter(&i) && QueryPerformanceFrequency(&f))
+        {
+            auto frequency = 1.0 / static_cast<double>(f.QuadPart);
+            return static_cast<double>(i.QuadPart) * frequency;
+        }
+        return 0.0;
+    }
+
 }

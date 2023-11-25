@@ -1,5 +1,6 @@
 #pragma once
 #include "mod_projectile.h"
+#include "mod_animation.h"
 #include "VRCR.h"
 #include "VRHolster.h"
 

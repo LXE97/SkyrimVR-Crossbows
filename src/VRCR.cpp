@@ -1,5 +1,12 @@
 #include "VRCR.h"
-#include "RE/N/NiRTTI.h"
+#include <cmath>
+#include <algorithm>
+
+#include "menuChecker.h"
+
+#include "helper_math.h"
+#include "helper_game.h"
+
 
 namespace VRCR
 {
@@ -25,20 +32,13 @@ namespace VRCR
     bool g_isVrikPresent;
 
     // TODO debug section
-    vrinput::OverlapSphereManager coolguy;
     std::string debugHolsterNodeName = "DEBUGDRAWSPHERE";
-    BGSProjectile *debugProjForm;
     float debugRadius = 1;
     NiPoint3 debugHolsterPos = {-4, 15, -40};
-    int32_t debugHolsterSphereHndl;
-    BSPointerHandle<Projectile> debugHolster3DHndl;
     auto TURNON = new NiColor(0xFF0000);
     auto TURNOFF = new NiColor(0x00FF00);
-    FormID debugHolsterProjFormID = 0x00A83D;
-    FormID debugHolsterSpell = 0x23D3E;
-    Projectile *debugptr;
     NiTransform *debugTransform;
-    SpellItem *debugSphereSpell;
+    int32_t debugHolsterSphereHndl;
 
     // TODO: configurize temp config section
     NiPoint3 config_SavedAimGrabPosition;
@@ -59,18 +59,9 @@ namespace VRCR
     void PreHiggsUpdate()
     {
         if (g_print)
-        { 
-            // DEBUG : update holster sphere position
-            auto targetNode = g_player->Get3D(true)->GetObjectByName("SPHEREATTACH");
-            auto destNode = g_player->GetVRNodeData()->LeftWandNode;
-            auto srcNode = g_player->Get3D(true)->GetObjectByName("NPC Root [Root]");
-
-            auto translate = destNode->world.translate - srcNode->world.translate;
-            translate = srcNode->world.Invert().rotate * translate;
-            targetNode->local.translate = translate;
-
+        {
+            vrinput::OverlapSphereManager::GetSingleton()->Update();
         }
-        // coolguy.Update();
     }
 
     // HIGGS two hand event handlers
@@ -97,18 +88,7 @@ namespace VRCR
         SKSE::log::info("A press ");
         if (!MenuChecker::isGameStopped())
         {
-
-            // DEBUG: show holster sphere
-            SKSE::log::info("casting spell");
-            auto spell = debugSphereSpell; 
-            if (spell)
-            {
-                auto caster = g_player->GetMagicCaster(RE::MagicSystem::CastingSource::kInstant);
-                if (caster)
-                {
-                    caster->CastSpellImmediate(spell, false, g_player, 1.0, false, 1.0, g_player);
-                }
-            }
+            vrinput::OverlapSphereManager::GetSingleton()->Destroy(debugHolsterSphereHndl);
             return true;
         }
         return false;
@@ -141,8 +121,6 @@ namespace VRCR
         {
             SKSE::log::info("fire button pressed");
 
-            // DEBUG section: move holster spheres
-
             // find sphere node
             auto node = g_player->Get3D(true)->GetObjectByName("SPHEREATTACH");
             if (node)
@@ -159,16 +137,10 @@ namespace VRCR
                     SKSE::log::info("attach node not found");
                 }
             }
-
-            auto pp = g_player->GetHandle();
-            auto eff = TESForm::LookupByID<EffectSetting>(getFullFormID(0x23D3F));
-            if (g_player->GetMagicTarget()->HasMagicEffect(eff))
+            else
             {
-                g_player->GetMagicTarget()->DispelEffect(debugSphereSpell, pp);
-                SKSE::log::info("yes its true");
+                SKSE::log::info("target node not found");
             }
-
-            SKSE::log::info("debug draw sphere over ");
 
             bool blocking = false;
             for (auto wpn : Crossbows)
@@ -478,8 +450,6 @@ namespace VRCR
         // constant runtime formID references
         equipRight = TESForm::LookupByID<BGSEquipSlot>(0x13f42);
         equipBoth = TESForm::LookupByID<BGSEquipSlot>(0x13f45);
-        debugProjForm = TESForm::LookupByID<BGSProjectile>(getFullFormID(debugHolsterProjFormID));
-        debugSphereSpell = TESForm::LookupByID<SpellItem>(getFullFormID(debugHolsterSpell));
 
         // VR init
         l_controller = g_OVRHookManager->GetVRSystem()->GetTrackedDeviceIndexForControllerRole(vr::TrackedControllerRole_LeftHand);
@@ -524,9 +494,6 @@ namespace VRCR
         ScriptEventSourceHolder::GetSingleton()->AddEventSink(equipSink);
         equipSink->AddCallback(onEquipEvent);
 
-        // coolguy = vrinput::OverlapSphereManager(&OnOverlap);
-        // coolguy.Create(g_player->GetVRNodeData()->UprightHmdNode.get(), &debugHolsterPos, &debugRadius);
-
         vrinput::AddCallback(vr::k_EButton_A, onDEBUGBtnPressA, Right, Press, ButtonDown);
         vrinput::AddCallback(vr::k_EButton_ApplicationMenu, onDEBUGBtnPressB, Right, Press, ButtonDown);
         vrinput::AddCallback(vr::k_EButton_SteamVR_Trigger, onPrimaryCrossbowButtonPress, Right, Press, ButtonDown);
@@ -535,6 +502,8 @@ namespace VRCR
     void GameLoad()
     {
         g_player = PlayerCharacter::GetSingleton();
+        vrinput::OverlapSphereManager::GetSingleton()->ShowHolsterSpheres();
+        debugHolsterSphereHndl = vrinput::OverlapSphereManager::GetSingleton()->Create(g_player->GetNodeByName("SHIELD")->AsNode(), {0,0,0}, 10, true);
     }
 
     void PreGameLoad()

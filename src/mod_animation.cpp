@@ -1,5 +1,5 @@
 #include "mod_animation.h"
-#include "VRCR.h"
+#include "helper_math.h"
 
 namespace Animation
 {
@@ -100,7 +100,7 @@ namespace Animation
                 return;
             }
 
-            auto RootNode = VRCR::g_player->GetNodeByName(a.def->rootNodeName);
+            auto RootNode = RE::PlayerCharacter::GetSingleton()->GetNodeByName(a.def->rootNodeName);
             if (!RootNode)
                 return;
 

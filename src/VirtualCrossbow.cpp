@@ -1,19 +1,16 @@
 #include "VirtualCrossbow.h"
-// TODO: move this to animationManager class
-//  animations
 
 VirtualCrossbow::VirtualCrossbow(int base, bool hand)
 {
     SKSE::log::info("Creating virtual crossbow for {:X} in {} hand", base, hand ? "left" : "right");
     _hand = hand;
 
-    // CreateOverlapSpheres(OverlapSphereID_PlaceArrow);
     GotoState(State::Start);
 }
 
 VirtualCrossbow::~VirtualCrossbow()
 {
-    VRCR::g_VRManager->DestroyLocalOverlapObject(OverlapSphereID_PlaceArrow);
+    // ->DestroyLocalOverlapObject(OverlapSphereID_PlaceArrow);
     GotoState(State::End);
     WriteStateToExtraData();
 }
@@ -21,7 +18,6 @@ VirtualCrossbow::~VirtualCrossbow()
 void VirtualCrossbow::Update()
 {
     using namespace RE;
-    using namespace VRCR;
 
     animator.Update();
 
@@ -33,7 +29,6 @@ void VirtualCrossbow::Update()
 
             if (reloadGrabState)
             {
-                
                 // reload lever is currently being grabbed
                 auto crossbowGrab = getGrabNode();
                 auto weaponNode = getThisWeaponNode();
@@ -46,7 +41,7 @@ void VirtualCrossbow::Update()
                     // TODO: put in helper math function
                     // get angle between the rotation axis and the grabbing controller
                     NiPoint3 dvector = grabController->world.translate - crossbowRot->world.translate;
-                    dvector = weaponNode->world.Invert().rotate * dvector;
+                    dvector = weaponNode->world.rotate.Transpose() * dvector;
                     AnimProgress_ReloadAngle = atan2(-1.0 * dvector.z, dvector.y);
 
                     AnimProgress_ReloadAngle -= AnimProgress_ReloadAngle_initial;
@@ -106,14 +101,13 @@ void VirtualCrossbow::Update()
 void VirtualCrossbow::OnGrabStart()
 {
     using namespace RE;
-    using namespace VRCR;
 
     // determine if grabbing hand is in position for aiming, reload, or other
     auto weaponNode = getThisWeaponNode();
     auto grabHand = getOtherHandNode();
 
     NiPoint3 weaponToHand = weaponNode->world.translate - grabHand->world.translate;
-    NiPoint3 weaponToHandHandspace = weaponNode->world.Invert().rotate * weaponToHand;
+    NiPoint3 weaponToHandHandspace = weaponNode->world.rotate.Transpose() * weaponToHand;
     SKSE::log::info("crossbow grab");
 
     // TODO: check hand orientation in addition to relative position
@@ -135,7 +129,7 @@ void VirtualCrossbow::OnGrabStart()
 
                 // get angle between the rotation axis and the grabbing controller
                 NiPoint3 dvector = grabController->world.translate - crossbowRot->world.translate;
-                dvector = weaponNode->world.Invert().rotate * dvector;
+                dvector = weaponNode->world.rotate.Transpose() * dvector;
                 AnimProgress_ReloadAngle_initial = atan2(-1.0 * dvector.z, dvector.y);
 
                 auto handTransform = grabHand->world;
@@ -159,10 +153,10 @@ void VirtualCrossbow::OnGrabStart()
     // hand below crossbow, aim
     else if (state == State::Loaded || config_AllowAllActionsAlways)
     {
-        if (config_SavedAimGrabHandspace.scale > 0 &&
-            grabHand->world.translate.GetDistance(weaponNode->world.translate + config_SavedAimGrabPosition) < config_InteractAimDistance)
+        if (VRCR::config_SavedAimGrabHandspace.scale > 0 &&
+            grabHand->world.translate.GetDistance(weaponNode->world.translate + VRCR::config_SavedAimGrabPosition) < config_InteractAimDistance)
         {
-            g_higgsInterface->SetGrabTransform(true, config_SavedAimGrabHandspace);
+            g_higgsInterface->SetGrabTransform(true, VRCR::config_SavedAimGrabHandspace);
         }
         // TODO: set fingers
     }
@@ -175,7 +169,7 @@ void VirtualCrossbow::OnGrabStop()
         animator.RemoveAnimation(standard_reload);
         VRCR::RestoreHiggsConfig();
     }
-    reloadGrabState = false;    
+    reloadGrabState = false;
 }
 
 void VirtualCrossbow::OnOverlap(const vrinput::OverlapEvent &e)
@@ -216,9 +210,9 @@ bool VirtualCrossbow::OnPrimaryButtonPress()
         // TODO:
         if (config_AllowAllActionsAlways)
         {
-            // block fire button from reaching the game
-            // out->ulButtonPressed
             Fire();
+            
+            // block fire button from reaching the game
             return true;
         }
         break;
@@ -232,7 +226,10 @@ bool VirtualCrossbow::OnPrimaryButtonPress()
 void VirtualCrossbow::Fire()
 {
     // play sound
-    Fire::ArrowFromPoint(VRCR::g_player, getThisWeaponNode()->world, VRCR::g_player->GetEquippedObject(_hand)->As<RE::TESObjectWEAP>(), VRCR::g_player->GetCurrentAmmo());
+
+    Fire::ArrowFromPoint(RE::PlayerCharacter::GetSingleton(), getThisWeaponNode()->world,
+                         RE::PlayerCharacter::GetSingleton()->GetEquippedObject(_hand)->As<RE::TESObjectWEAP>(),
+                         RE::PlayerCharacter::GetSingleton()->GetCurrentAmmo());
     // queue up animation
     animator.AddAnimation(standard_reload, 0.0);
 }
@@ -240,6 +237,7 @@ void VirtualCrossbow::Fire()
 void VirtualCrossbow::FireDry()
 {
     // play sound
+
     // queue up animation
     animator.AddAnimation(standard_reload, 0.0);
     GotoState(State::Empty);
@@ -248,13 +246,9 @@ void VirtualCrossbow::FireDry()
 void VirtualCrossbow::CreateOverlapSpheres(uint32_t &PlaceArrow)
 {
     using namespace RE;
-    using namespace VRCR;
-    PapyrusVR::Matrix34 transform;
-    NiTransform HeadToFeet;
-    HeadToFeet.translate = g_player->GetVRNodeData()->PlayerWorldNode->world.translate - g_player->GetVRNodeData()->UprightHmdNode->world.translate;
-    PapyrusVR::OpenVRUtils::CopyNiTrasformToMatrix34(&HeadToFeet, &transform);
-    PlaceArrow = VRCR::g_VRManager->CreateLocalOverlapSphere(
-        0.2f, &transform, _hand ? PapyrusVR::VRDevice_LeftController : PapyrusVR::VRDevice_RightController);
+
+    // PlaceArrow = VRCR::g_VRManager->CreateLocalOverlapSphere(
+    //     0.2f, &transform, _hand ? PapyrusVR::VRDevice_LeftController : PapyrusVR::VRDevice_RightController);
 }
 
 void VirtualCrossbow::GotoState(State newstate)
@@ -349,51 +343,51 @@ RE::NiPointer<RE::NiNode> VirtualCrossbow::getThisHandNode()
 {
     if (_hand)
     {
-        return VRCR::g_player->GetVRNodeData()->NPCLHnd;
+        return RE::PlayerCharacter::GetSingleton()->GetVRNodeData()->NPCLHnd;
     }
     else
     {
-        return VRCR::g_player->GetVRNodeData()->NPCRHnd;
+        return RE::PlayerCharacter::GetSingleton()->GetVRNodeData()->NPCRHnd;
     }
 }
 RE::NiPointer<RE::NiNode> VirtualCrossbow::getOtherHandNode()
 {
     if (!_hand)
     {
-        return VRCR::g_player->GetVRNodeData()->NPCLHnd;
+        return RE::PlayerCharacter::GetSingleton()->GetVRNodeData()->NPCLHnd;
     }
     else
     {
-        return VRCR::g_player->GetVRNodeData()->NPCRHnd;
+        return RE::PlayerCharacter::GetSingleton()->GetVRNodeData()->NPCRHnd;
     }
 }
 RE::NiPointer<RE::NiNode> VirtualCrossbow::getThisControllerNode()
 {
     if (_hand)
     {
-        return VRCR::g_player->GetVRNodeData()->LeftValveIndexControllerNode;
+        return RE::PlayerCharacter::GetSingleton()->GetVRNodeData()->LeftValveIndexControllerNode;
     }
     else
     {
-        return VRCR::g_player->GetVRNodeData()->RightValveIndexControllerNode;
+        return RE::PlayerCharacter::GetSingleton()->GetVRNodeData()->RightValveIndexControllerNode;
     }
 }
 RE::NiPointer<RE::NiNode> VirtualCrossbow::getOtherControllerNode()
 {
     if (!_hand)
     {
-        return VRCR::g_player->GetVRNodeData()->LeftValveIndexControllerNode;
+        return RE::PlayerCharacter::GetSingleton()->GetVRNodeData()->LeftValveIndexControllerNode;
     }
     else
     {
-        return VRCR::g_player->GetVRNodeData()->RightValveIndexControllerNode;
+        return RE::PlayerCharacter::GetSingleton()->GetVRNodeData()->RightValveIndexControllerNode;
     }
 }
 RE::NiNode *VirtualCrossbow::getThisWeaponNode()
 {
     if (_hand)
     {
-        auto node = VRCR::g_player->GetNodeByName("SHIELD");
+        auto node = RE::PlayerCharacter::GetSingleton()->GetNodeByName("SHIELD");
         if (node)
         {
             return node->AsNode();
@@ -405,7 +399,7 @@ RE::NiNode *VirtualCrossbow::getThisWeaponNode()
     }
     else
     {
-        auto node = VRCR::g_player->GetNodeByName("WEAPON");
+        auto node = RE::PlayerCharacter::GetSingleton()->GetNodeByName("WEAPON");
         if (node)
         {
             return node->AsNode();

@@ -1,5 +1,6 @@
 #include "mod_projectile.h"
 #include "helper_math.h"
+#include <cmath>
 
 namespace Fire
 {
@@ -8,7 +9,6 @@ namespace Fire
     {
         if (ammo)
         {
-            //if(auto proj = RE::TESForm::LookupByID<RE::BGSProjectile>(0x0400A83D))
             if (auto proj = ammo->GetRuntimeData().data.projectile)
             {
                 RE::Projectile::LaunchData ldata;

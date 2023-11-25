@@ -1,8 +1,9 @@
 #include "menuChecker.h"
+#include "mod_eventSink.hpp"
 
 namespace MenuChecker
 {
-    bool isGameStoppedState = false;
+    bool isGameStoppedState = true;
 
     bool isGameStopped()
     {

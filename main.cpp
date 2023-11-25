@@ -7,6 +7,7 @@
 #include "VRCR.h"
 #include "higgsinterface001.h"
 #include "vrikinterface001.h"
+#include "Windows.h"
 
 void MessageListener(SKSE::MessagingInterface::Message *message);
 void OnPapyrusVRMessage(SKSE::MessagingInterface::Message *message);
