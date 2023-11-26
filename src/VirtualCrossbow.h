@@ -2,7 +2,7 @@
 #include "mod_projectile.h"
 #include "mod_animation.h"
 #include "VRCR.h"
-#include "VRHolster.h"
+#include "VRInteractionSphere.h"
 
 class AnimationProcessor;
 

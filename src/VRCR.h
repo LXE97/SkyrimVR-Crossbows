@@ -8,7 +8,7 @@
 #include "VR/VRManagerAPI.h"
 #include "VR/OpenVRUtils.h"
 #include "VirtualCrossbow.h"
-#include "VRHolster.h"
+#include "VRInteractionSphere.h"
 
 #include "mod_input.h"
 #include "mod_eventSink.hpp"

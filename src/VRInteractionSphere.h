@@ -22,9 +22,11 @@ namespace vrinput
             return &singleton;
         }
 
+        RE::NiPoint3 palmoffset;
+
         // If followRotation is true it will move as if a child of the attachNode, if false it will only
         // track the compass rotation (Heading / world Z-axis rotation)
-        int32_t Create(RE::NiNode *attachNode, RE::NiPoint3 localPosition, float radius, bool followRotation = false);
+        int32_t Create(RE::NiNode *attachNode, RE::NiPoint3 localPosition, float radius, bool followRotation = false, bool debugNode = false);
         void Destroy(int32_t targetID);
 
         void ShowHolsterSpheres();
@@ -38,19 +40,23 @@ namespace vrinput
         struct OverlapSphere
         {
         public:
-            OverlapSphere(RE::NiNode *attachNode, RE::NiPoint3 localPosition, float radius, int32_t ID, bool followRotation = false)
-                : attachNode(attachNode), localPosition(localPosition), squaredRadius(radius * radius), ID(ID), followRotation(followRotation) {}
+            OverlapSphere(RE::NiNode *attachNode, RE::NiPoint3 localPosition, float radius, int32_t ID, bool followRotation = false, bool debugNode = false)
+                : attachNode(attachNode), localPosition(localPosition), squaredRadius(radius * radius), ID(ID), followRotation(followRotation), debugNode(debugNode) {}
 
             RE::NiNode *attachNode;
             RE::NiPoint3 localPosition;
             float squaredRadius;
-            bool followRotation;
+            bool followRotation;    // determines whether the sphere inherits pitch and roll (only matters if localPosition is set)
+            bool debugNode;     // if true, collision is not checked and model is always visible (ignoring depth)
             int32_t ID;
             bool overlapState[2];
         };
 
-        void AddVisibleHolster(int32_t id, float scale);
+        void SetOverlapEventHandler(OverlapCallback cb);
+        void AddVisibleHolster(int32_t id, float scale, bool debugNode);
         void DestroyVisibleHolster(int32_t ID);
+        void Dispel();
+        void SetGlowColor(RE::NiAVObject *target, RE::NiColor *c);
 
         RE::NiPointer<RE::NiNode> controllers[2];
         std::vector<OverlapSphere> spheres;
@@ -60,22 +66,14 @@ namespace vrinput
 
         std::mutex CastSpellMutex;
 
+        float hysteresis = 20; // squared distance threshold before changing to off state
         RE::SpellItem *DrawSphereSpell;
         RE::EffectSetting *DrawSphereMGEF;
         std::string DrawSphereSpellEditorName = "Z4K_HolsterDebugSphere";
         std::string DrawSphereMGEFEditorName = "Z4K_HolsterDebugSphereMGEF";
         std::string DrawNodeName = "SPHEREATTACH";
-        std::string DrawInitialAttachNode = "WEAPON";
-        std::string DrawNewParentNode = "NPC Root [Root]";
-
-        inline void Dispel()
-        { // dispel the magic effect that adds holster model
-            auto pp = RE::PlayerCharacter::GetSingleton()->GetHandle();
-            if (RE::PlayerCharacter::GetSingleton()->GetMagicTarget() &&
-                RE::PlayerCharacter::GetSingleton()->GetMagicTarget()->HasMagicEffect(DrawSphereMGEF))
-            {
-                RE::PlayerCharacter::GetSingleton()->GetMagicTarget()->DispelEffect(DrawSphereSpell, pp);
-            }
-        }
+        std::string DrawNewParentNode = "NPC Root [Root]";  // this doesnt really matter
+        RE::NiColor* TURNON;
+        RE::NiColor* TURNOFF;
     };
 }

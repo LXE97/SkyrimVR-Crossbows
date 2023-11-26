@@ -7,7 +7,6 @@
 #include "helper_math.h"
 #include "helper_game.h"
 
-
 namespace VRCR
 {
     using namespace vrinput;
@@ -22,23 +21,19 @@ namespace VRCR
 
     uint8_t thisPluginID;
     PlayerCharacter *g_player;
-    TESAmmo *g_ammoToGrab;
     SKSE::detail::SKSETaskInterface *g_task;
+    bool g_isVrikPresent;
     OpenVRHookManagerAPI *g_OVRHookManager;
     PapyrusVR::VRManagerAPI *g_VRManager;
     vr::TrackedDeviceIndex_t l_controller;
     vr::TrackedDeviceIndex_t r_controller;
-    VirtualCrossbow *Crossbows[2] = {nullptr, nullptr};
-    bool g_isVrikPresent;
 
-    // TODO debug section
-    std::string debugHolsterNodeName = "DEBUGDRAWSPHERE";
-    float debugRadius = 1;
-    NiPoint3 debugHolsterPos = {-4, 15, -40};
-    auto TURNON = new NiColor(0xFF0000);
-    auto TURNOFF = new NiColor(0x00FF00);
-    NiTransform *debugTransform;
-    int32_t debugHolsterSphereHndl;
+    TESAmmo *g_ammoToGrab;
+    VirtualCrossbow *Crossbows[2] = {nullptr, nullptr};
+
+    // DEBUG
+    int32_t debugLHandDrawSphere;
+    int32_t debugRHandDrawSphere;
 
     // TODO: configurize temp config section
     NiPoint3 config_SavedAimGrabPosition;
@@ -54,14 +49,12 @@ namespace VRCR
         {"OffhandAffectsTwoHandedRotation", 0},
         {"twoHandedHandToHandRotationFactor", 0.0}};
     auto higgs_SaveConfig = higgs_ConfigOverride;
-    bool g_print = false;
+
+    bool g_dostuff = false;
 
     void PreHiggsUpdate()
     {
-        if (g_print)
-        {
-            vrinput::OverlapSphereManager::GetSingleton()->Update();
-        }
+        vrinput::OverlapSphereManager::GetSingleton()->Update();
     }
 
     // HIGGS two hand event handlers
@@ -82,14 +75,11 @@ namespace VRCR
     }
 
     // Button presses
-
     bool onDEBUGBtnPressA()
     {
         SKSE::log::info("A press ");
         if (!MenuChecker::isGameStopped())
         {
-            vrinput::OverlapSphereManager::GetSingleton()->Destroy(debugHolsterSphereHndl);
-            return true;
         }
         return false;
     }
@@ -98,7 +88,7 @@ namespace VRCR
     {
         SKSE::log::info("B press ");
 
-        g_print = false;
+        g_dostuff = false;
         vrinput::RemoveCallback(vr::k_EButton_ApplicationMenu, onDEBUGBtnReleaseB, Right, Press, ButtonUp);
         return false;
     }
@@ -107,7 +97,7 @@ namespace VRCR
         SKSE::log::info("B press ");
         if (!MenuChecker::isGameStopped())
         {
-            g_print = true;
+            g_dostuff = true;
             vrinput::AddCallback(vr::k_EButton_ApplicationMenu, onDEBUGBtnReleaseB, Right, Press, ButtonUp);
 
             return true;
@@ -120,27 +110,6 @@ namespace VRCR
         if (!MenuChecker::isGameStopped())
         {
             SKSE::log::info("fire button pressed");
-
-            // find sphere node
-            auto node = g_player->Get3D(true)->GetObjectByName("SPHEREATTACH");
-            if (node)
-            {
-                // move to target node
-                auto root = g_player->Get3D(true)->GetObjectByName("NPC Root [Root]");
-                // auto Lhand = g_player->GetVRNodeData()->UprightHmdNode;
-                if (root)
-                {
-                    root->AsNode()->AttachChild(node);
-                }
-                else
-                {
-                    SKSE::log::info("attach node not found");
-                }
-            }
-            else
-            {
-                SKSE::log::info("target node not found");
-            }
 
             bool blocking = false;
             for (auto wpn : Crossbows)
@@ -156,7 +125,7 @@ namespace VRCR
     {
         if (!MenuChecker::isGameStopped())
         {
-            SKSE::log::info("holster grabbed");
+            SKSE::log::info("quiver grabbed");
             // we already know we are overlapping
             return true;
         }
@@ -168,11 +137,6 @@ namespace VRCR
         if (!MenuChecker::isGameStopped())
         {
             SKSE::log::info("holster released");
-
-            // get the difference from initial position to current position
-
-            // copy new transform
-            return true;
         }
         return false;
     }
@@ -370,27 +334,9 @@ namespace VRCR
 
     void OnOverlap(const OverlapEvent &e)
     {
-        if (e.ID == debugHolsterSphereHndl && e.isLeft)
+        for (auto wpn : Crossbows)
         {
-            if (e.entered)
-            {
-                SKSE::log::info("HOLSTER : XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
-                vrinput::AddCallback(config_SecondaryBtn, onHolsterBtnPress, Left, Press, ButtonDown);
-                vrinput::AddCallback(vr::k_EButton_ApplicationMenu, onGrabButtonPress, Right, Press, ButtonDown);
-            }
-            else
-            {
-                SKSE::log::info("HOLSTER :                  000000000000");
-                vrinput::RemoveCallback(config_SecondaryBtn, onHolsterBtnPress, Left, Press, ButtonDown);
-                vrinput::RemoveCallback(vr::k_EButton_ApplicationMenu, onGrabButtonPress, Right, Press, ButtonDown);
-            }
-        }
-        else
-        {
-            for (auto wpn : Crossbows)
-            {
-                wpn ? wpn->OnOverlap(e) : void();
-            }
+            wpn ? wpn->OnOverlap(e) : void();
         }
     }
 
@@ -471,6 +417,7 @@ namespace VRCR
 
             // TODO: read this from our config
             higgs_palmPosHandspace = {0, -2.4, 6};
+            vrinput::OverlapSphereManager::GetSingleton()->palmoffset = higgs_palmPosHandspace;
 
             higgs_SaveConfig = higgs_ConfigOverride;
             SKSE::log::info("initial HIGGS settings:");
@@ -502,15 +449,19 @@ namespace VRCR
     void GameLoad()
     {
         g_player = PlayerCharacter::GetSingleton();
+
+        // DEBUG: draw hand nodes with higgs offset
         vrinput::OverlapSphereManager::GetSingleton()->ShowHolsterSpheres();
-        debugHolsterSphereHndl = vrinput::OverlapSphereManager::GetSingleton()->Create(g_player->GetNodeByName("SHIELD")->AsNode(), {0,0,0}, 10, true);
+        debugLHandDrawSphere = vrinput::OverlapSphereManager::GetSingleton()->Create(g_player->GetVRNodeData()->NPCLHnd.get(), higgs_palmPosHandspace, 0.5, true, true);
+        debugRHandDrawSphere = vrinput::OverlapSphereManager::GetSingleton()->Create(g_player->GetVRNodeData()->NPCRHnd.get(), higgs_palmPosHandspace, 0.5, true, true);
     }
 
     void PreGameLoad()
     {
+        vrinput::OverlapSphereManager::GetSingleton()->Destroy(debugLHandDrawSphere);
+        vrinput::OverlapSphereManager::GetSingleton()->Destroy(debugRHandDrawSphere);
     }
 
-    //  TODO: move this into vrinput files
     // handles low level button/trigger events
     bool ControllerInput_CB(vr::TrackedDeviceIndex_t unControllerDeviceIndex, const vr::VRControllerState_t *pControllerState, uint32_t unControllerStateSize, vr::VRControllerState_t *pOutputControllerState)
     {
@@ -554,6 +505,13 @@ namespace VRCR
         return true;
     }
 
+    vr::EVRCompositorError Poses_CB(VR_ARRAY_COUNT(unRenderPoseArrayCount) vr::TrackedDevicePose_t *pRenderPoseArray, uint32_t unRenderPoseArrayCount,
+                                    VR_ARRAY_COUNT(unGamePoseArrayCount) vr::TrackedDevicePose_t *pGamePoseArray, uint32_t unGamePoseArrayCount)
+    {
+
+        return vr::EVRCompositorError::VRCompositorError_None;
+    }
+
     // Register SkyrimVRTools callback
     void RegisterVRInputCallback()
     {
@@ -566,6 +524,7 @@ namespace VRCR
                 // InitSystem(g_OVRHookManager->GetVRSystem()); required for haptic triggers, set up later
 
                 g_OVRHookManager->RegisterControllerStateCB(ControllerInput_CB);
+                g_OVRHookManager->RegisterGetPosesCB(Poses_CB);
             }
         }
     }
