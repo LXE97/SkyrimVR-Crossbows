@@ -1,5 +1,5 @@
 #include "mod_animation.h"
-#include "VRCR.h"
+#include "helper_math.h"
 
 namespace Animation
 {
@@ -100,7 +100,7 @@ namespace Animation
                 return;
             }
 
-            auto RootNode = VRCR::g_player->GetNodeByName(a.def->rootNodeName);
+            auto RootNode = RE::PlayerCharacter::GetSingleton()->GetNodeByName(a.def->rootNodeName);
             if (!RootNode)
                 return;
 
@@ -138,8 +138,7 @@ namespace Animation
                         if (keys[i].second >= targetTime)
                         {
                             auto ctx = RE::NiUpdateData();
-                            RE::NiMatrix3 rotate = helper::slerpQuat(targetTime, prevFrame.first, keys[i].first);
-                            ninode->local.rotate = rotate;
+                            helper::slerpQuat(targetTime, prevFrame.first, keys[i].first, ninode->local.rotate);                            
                             ninode->Update(ctx);
 
                             finished = false;

@@ -1,7 +1,6 @@
 // Shizof's method
 #pragma once
 
-#include "mod_eventSink.hpp"
 #include <unordered_map>
 
 namespace MenuChecker

@@ -1,10 +1,13 @@
-#include <spdlog/sinks/basic_file_sink.h>
+#undef ENABLE_SKYRIM_AE
+#undef ENABLE_SKYRIM_SE
 
+#include <spdlog/sinks/basic_file_sink.h>
 #include "SKSE/API.h"
 #include "SKSE/Impl/Stubs.h"
 #include "VRCR.h"
 #include "higgsinterface001.h"
 #include "vrikinterface001.h"
+#include "Windows.h"
 
 void MessageListener(SKSE::MessagingInterface::Message *message);
 void OnPapyrusVRMessage(SKSE::MessagingInterface::Message *message);
@@ -121,6 +124,7 @@ void OnPapyrusVRMessage(SKSE::MessagingInterface::Message *message)
 
             VRCR::g_VRManager = g_papyrusvr->GetVRManager();
             VRCR::g_OVRHookManager = g_papyrusvr->GetOpenVRHook();
+            // TODO: Might not want to store these in case controller powers off during game
             VRCR::l_controller = VRCR::g_OVRHookManager->GetVRSystem()->GetTrackedDeviceIndexForControllerRole(vr::TrackedControllerRole_LeftHand);
             VRCR::r_controller = VRCR::g_OVRHookManager->GetVRSystem()->GetTrackedDeviceIndexForControllerRole(vr::TrackedControllerRole_RightHand);
         }
