@@ -16,24 +16,25 @@ namespace VRCR
     constexpr FormID playerID = 0x14;
 
     // engine constants
-    BGSEquipSlot *equipRight;
-    BGSEquipSlot *equipBoth;
+    BGSEquipSlot* equipRight;
+    BGSEquipSlot* equipBoth;
 
     uint8_t thisPluginID;
-    PlayerCharacter *g_player;
-    SKSE::detail::SKSETaskInterface *g_task;
+    PlayerCharacter* g_player;
+    SKSE::detail::SKSETaskInterface* g_task;
     bool g_isVrikPresent;
-    OpenVRHookManagerAPI *g_OVRHookManager;
-    PapyrusVR::VRManagerAPI *g_VRManager;
+    OpenVRHookManagerAPI* g_OVRHookManager;
+    PapyrusVR::VRManagerAPI* g_VRManager;
     vr::TrackedDeviceIndex_t l_controller;
     vr::TrackedDeviceIndex_t r_controller;
 
-    TESAmmo *g_ammoToGrab;
-    VirtualCrossbow *Crossbows[2] = {nullptr, nullptr};
+    TESAmmo* g_ammoToGrab;
+    VirtualCrossbow* Crossbows[2] = { nullptr, nullptr };
 
     // DEBUG
     int32_t debugLHandDrawSphere;
     int32_t debugRHandDrawSphere;
+    NiPoint3 NPCHandPalmNormal = { 0, -1, 0 };
 
     // TODO: configurize temp config section
     NiPoint3 config_SavedAimGrabPosition;
@@ -47,7 +48,7 @@ namespace VRCR
         {"twoHandedHandToHandAlignmentFactor", 0.0},
         {"twoHandedHandToHandShiftFactor", 0.1},
         {"OffhandAffectsTwoHandedRotation", 0},
-        {"twoHandedHandToHandRotationFactor", 0.0}};
+        {"twoHandedHandToHandRotationFactor", 0.0} };
     auto higgs_SaveConfig = higgs_ConfigOverride;
 
     bool g_dostuff = false;
@@ -55,6 +56,16 @@ namespace VRCR
     void PreHiggsUpdate()
     {
         vrinput::OverlapSphereManager::GetSingleton()->Update();
+
+        for (auto wpn : Crossbows)
+        {
+            wpn ? wpn->Update() : void();
+        }
+    }
+
+    void PostHiggsUpdate()
+    {
+
     }
 
     // HIGGS two hand event handlers
@@ -80,6 +91,7 @@ namespace VRCR
         SKSE::log::info("A press ");
         if (!MenuChecker::isGameStopped())
         {
+
         }
         return false;
     }
@@ -110,6 +122,11 @@ namespace VRCR
         if (!MenuChecker::isGameStopped())
         {
             SKSE::log::info("fire button pressed");
+            auto v = g_player->GetVRNodeData()->NPCRHnd.get()->world.rotate * NPCHandPalmNormal;
+            auto u = g_player->GetVRNodeData()->NPCLHnd.get()->world.rotate * NPCHandPalmNormal;
+            auto theta = rad_to_deg(std::acos(u.Dot(v)));
+
+            SKSE::log::info("{}, {}, {}", theta, g_player->GetVRNodeData()->NPCLHnd.get()->world.scale, g_player->GetVRNodeData()->NPCRHnd.get()->world.scale);
 
             bool blocking = false;
             for (auto wpn : Crossbows)
@@ -179,7 +196,7 @@ namespace VRCR
         return false;
     }
 
-    void onWeaponDraw(const SKSE::ActionEvent *event)
+    void onWeaponDraw(const SKSE::ActionEvent* event)
     {
         if (g_player && g_player->As<TESObjectREFR>() == event->actor)
         {
@@ -201,7 +218,7 @@ namespace VRCR
         }
     }
 
-    void onEquipEvent(const TESEquipEvent *event)
+    void onEquipEvent(const TESEquipEvent* event)
     {
         SKSE::log::info("equip event: getting actor");
 
@@ -279,7 +296,7 @@ namespace VRCR
     }
 
     // TODO: Watch the player inventory and swaps any crossbows with a duplicate that's set to one handed, for player use only.
-    void onContainerChange(const TESContainerChangedEvent *event)
+    void onContainerChange(const TESContainerChangedEvent* event)
     {
         SKSE::log::info("container event: {}", event->newContainer);
         if (!(g_player) || !(g_player)->loadedData)
@@ -332,7 +349,7 @@ namespace VRCR
         }
     }
 
-    void OnOverlap(const OverlapEvent &e)
+    void OnOverlap(const OverlapEvent& e)
     {
         for (auto wpn : Crossbows)
         {
@@ -342,7 +359,7 @@ namespace VRCR
 
     void OverrideHiggsConfig()
     {
-        for (auto &[key, value] : higgs_ConfigOverride)
+        for (auto& [key, value] : higgs_ConfigOverride)
         {
             g_higgsInterface->SetSettingDouble(key, value);
         }
@@ -350,7 +367,7 @@ namespace VRCR
 
     void RestoreHiggsConfig()
     {
-        for (auto &[key, value] : higgs_SaveConfig)
+        for (auto& [key, value] : higgs_SaveConfig)
         {
             bool set = g_higgsInterface->SetSettingDouble(key, value);
             if (!set)
@@ -414,14 +431,15 @@ namespace VRCR
             g_higgsInterface->AddStartTwoHandingCallback(onWeaponGrabStart);
             g_higgsInterface->AddStopTwoHandingCallback(onWeaponGrabFinish);
             g_higgsInterface->AddPostVrikPreHiggsCallback(PreHiggsUpdate);
+            g_higgsInterface->AddPostVrikPostHiggsCallback(PostHiggsUpdate);
+
 
             // TODO: read this from our config
-            higgs_palmPosHandspace = {0, -2.4, 6};
+            higgs_palmPosHandspace = { 0, -2.4, 6 };
             vrinput::OverlapSphereManager::GetSingleton()->palmoffset = higgs_palmPosHandspace;
 
-            higgs_SaveConfig = higgs_ConfigOverride;
             SKSE::log::info("initial HIGGS settings:");
-            for (auto &[key, value] : higgs_SaveConfig)
+            for (auto& [key, value] : higgs_SaveConfig)
             {
                 bool read = g_higgsInterface->GetSettingDouble(key, value);
                 SKSE::log::info("{} : {}", key, higgs_SaveConfig[key]);
@@ -452,8 +470,10 @@ namespace VRCR
 
         // DEBUG: draw hand nodes with higgs offset
         vrinput::OverlapSphereManager::GetSingleton()->ShowHolsterSpheres();
-        debugLHandDrawSphere = vrinput::OverlapSphereManager::GetSingleton()->Create(g_player->GetVRNodeData()->NPCLHnd.get(), higgs_palmPosHandspace, 0.5, true, true);
-        debugRHandDrawSphere = vrinput::OverlapSphereManager::GetSingleton()->Create(g_player->GetVRNodeData()->NPCRHnd.get(), higgs_palmPosHandspace, 0.5, true, true);
+        debugLHandDrawSphere = vrinput::OverlapSphereManager::GetSingleton()->Create(
+            g_player->GetVRNodeData()->NPCLHnd.get(), &higgs_palmPosHandspace, 4, &NPCHandPalmNormal, 0, false, true);
+        debugRHandDrawSphere = vrinput::OverlapSphereManager::GetSingleton()->Create(
+            g_player->GetVRNodeData()->NPCRHnd.get(), &higgs_palmPosHandspace, 4, &NPCHandPalmNormal, 0, false, true);
     }
 
     void PreGameLoad()
@@ -463,7 +483,7 @@ namespace VRCR
     }
 
     // handles low level button/trigger events
-    bool ControllerInput_CB(vr::TrackedDeviceIndex_t unControllerDeviceIndex, const vr::VRControllerState_t *pControllerState, uint32_t unControllerStateSize, vr::VRControllerState_t *pOutputControllerState)
+    bool ControllerInput_CB(vr::TrackedDeviceIndex_t unControllerDeviceIndex, const vr::VRControllerState_t* pControllerState, uint32_t unControllerStateSize, vr::VRControllerState_t* pOutputControllerState)
     {
         // save last controller input to only do processing on button changes
         static uint64_t prev_Pressed[2] = {};
@@ -505,8 +525,8 @@ namespace VRCR
         return true;
     }
 
-    vr::EVRCompositorError Poses_CB(VR_ARRAY_COUNT(unRenderPoseArrayCount) vr::TrackedDevicePose_t *pRenderPoseArray, uint32_t unRenderPoseArrayCount,
-                                    VR_ARRAY_COUNT(unGamePoseArrayCount) vr::TrackedDevicePose_t *pGamePoseArray, uint32_t unGamePoseArrayCount)
+    vr::EVRCompositorError Poses_CB(VR_ARRAY_COUNT(unRenderPoseArrayCount) vr::TrackedDevicePose_t* pRenderPoseArray, uint32_t unRenderPoseArrayCount,
+        VR_ARRAY_COUNT(unGamePoseArrayCount) vr::TrackedDevicePose_t* pGamePoseArray, uint32_t unGamePoseArrayCount)
     {
 
         return vr::EVRCompositorError::VRCompositorError_None;

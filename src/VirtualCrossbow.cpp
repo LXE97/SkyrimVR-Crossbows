@@ -10,8 +10,7 @@ VirtualCrossbow::VirtualCrossbow(int base, bool hand)
 
 VirtualCrossbow::~VirtualCrossbow()
 {
-    // ->DestroyLocalOverlapObject(OverlapSphereID_PlaceArrow);
-    GotoState(State::End);
+    DestroyOverlapSpheres();
     WriteStateToExtraData();
 }
 
@@ -108,7 +107,6 @@ void VirtualCrossbow::OnGrabStart()
 
     NiPoint3 weaponToHand = weaponNode->world.translate - grabHand->world.translate;
     NiPoint3 weaponToHandHandspace = weaponNode->world.rotate.Transpose() * weaponToHand;
-    SKSE::log::info("crossbow grab");
 
     // TODO: check hand orientation in addition to relative position
 
@@ -172,13 +170,13 @@ void VirtualCrossbow::OnGrabStop()
     reloadGrabState = false;
 }
 
-void VirtualCrossbow::OnOverlap(const vrinput::OverlapEvent &e)
+void VirtualCrossbow::OnOverlap(const vrinput::OverlapEvent& e)
 {
     using namespace RE;
     switch (state)
     {
     case State::Cocked:
-        if (e.ID == OverlapSphereID_PlaceArrow)
+        if (e.ID == PlaceArrow_ID)
         {
             auto heldRef = g_higgsInterface->GetGrabbedObject(!_hand);
             if (heldRef && heldRef->IsAmmo() && heldRef->As<TESAmmo>()->IsBolt())
@@ -211,7 +209,7 @@ bool VirtualCrossbow::OnPrimaryButtonPress()
         if (config_AllowAllActionsAlways)
         {
             Fire();
-            
+
             // block fire button from reaching the game
             return true;
         }
@@ -228,8 +226,8 @@ void VirtualCrossbow::Fire()
     // play sound
 
     Fire::ArrowFromPoint(RE::PlayerCharacter::GetSingleton(), getThisWeaponNode()->world,
-                         RE::PlayerCharacter::GetSingleton()->GetEquippedObject(_hand)->As<RE::TESObjectWEAP>(),
-                         RE::PlayerCharacter::GetSingleton()->GetCurrentAmmo());
+        RE::PlayerCharacter::GetSingleton()->GetEquippedObject(_hand)->As<RE::TESObjectWEAP>(),
+        RE::PlayerCharacter::GetSingleton()->GetCurrentAmmo());
     // queue up animation
     animator.AddAnimation(standard_reload, 0.0);
 }
@@ -243,12 +241,32 @@ void VirtualCrossbow::FireDry()
     GotoState(State::Empty);
 }
 
-void VirtualCrossbow::CreateOverlapSpheres(uint32_t &PlaceArrow)
+void VirtualCrossbow::CreateOverlapSpheres()
 {
-    using namespace RE;
+    // when unsheathing the weapon it takes some time for the model to appear so we have to wait
+    std::thread WaitForModel([this]()
+        {
+            for (int i = 0; i < 100; i++) {
+                if (getLeverRotNode()) {
+                    break;
+                }
+                else {
+                    std::this_thread::sleep_for(100ms);
+                }
+            }
+            ReloadGrab_ID = vrinput::OverlapSphereManager::GetSingleton()->Create(
+                getLeverRotNode(), &ReloadGrab_offset, 4, &ReloadGrab_normal, ReloadGrab_angle, false, false);
+        });
+    WaitForModel.detach();
+}
 
-    // PlaceArrow = VRCR::g_VRManager->CreateLocalOverlapSphere(
-    //     0.2f, &transform, _hand ? PapyrusVR::VRDevice_LeftController : PapyrusVR::VRDevice_RightController);
+void VirtualCrossbow::DestroyOverlapSpheres()
+{
+    if (ReloadGrab_ID)
+    {
+        vrinput::OverlapSphereManager::GetSingleton()->Destroy(ReloadGrab_ID);
+        ReloadGrab_ID = 0;
+    }
 }
 
 void VirtualCrossbow::GotoState(State newstate)
@@ -292,9 +310,18 @@ void VirtualCrossbow::OnEnterState()
     switch (state)
     {
     case State::Start:
-        ReadStateFromExtraData();
+        if (false)
+        {
+            GotoState(State::Sheathed);
+        }
+        else
+        {
+            CreateOverlapSpheres();
+            ReadStateFromExtraData();
+        }
         break;
     case State::Sheathed:
+        DestroyOverlapSpheres();
         break;
     case State::Empty:
         if (prev_state == State::Start)
@@ -327,6 +354,7 @@ void VirtualCrossbow::OnExitState()
     case State::Start:
         break;
     case State::Sheathed:
+        CreateOverlapSpheres();
         break;
     case State::Empty:
         break;
@@ -383,7 +411,7 @@ RE::NiPointer<RE::NiNode> VirtualCrossbow::getOtherControllerNode()
         return RE::PlayerCharacter::GetSingleton()->GetVRNodeData()->RightValveIndexControllerNode;
     }
 }
-RE::NiNode *VirtualCrossbow::getThisWeaponNode()
+RE::NiNode* VirtualCrossbow::getThisWeaponNode()
 {
     if (_hand)
     {
@@ -411,7 +439,7 @@ RE::NiNode *VirtualCrossbow::getThisWeaponNode()
     }
     return nullptr;
 }
-RE::NiNode *VirtualCrossbow::getGrabNode()
+RE::NiNode* VirtualCrossbow::getGrabNode()
 {
     auto node = getThisWeaponNode();
     if (node)
@@ -431,7 +459,7 @@ RE::NiNode *VirtualCrossbow::getGrabNode()
         return nullptr;
     }
 }
-RE::NiNode *VirtualCrossbow::getLeverRotNode()
+RE::NiNode* VirtualCrossbow::getLeverRotNode()
 {
     auto node = getThisWeaponNode();
     if (node)

@@ -1,13 +1,18 @@
 #include "VRInteractionSphere.h"
-#include "helper_math.h"
-#include "helper_game.h"
 
 namespace vrinput
 {
     OverlapSphereManager::OverlapSphereManager()
     {
-        DrawSphereSpell = helper::LookupByName(RE::FormType::Spell, DrawSphereSpellEditorName.c_str())->As<RE::SpellItem>();
-        DrawSphereMGEF = helper::LookupByName(RE::FormType::MagicEffect, DrawSphereMGEFEditorName.c_str())->As<RE::EffectSetting>();
+        if (auto temp = helper::LookupByName(RE::FormType::Spell, DrawSphereSpellEditorName))
+        {
+            DrawSphereSpell = temp->As<RE::SpellItem>();
+        }
+
+        if (auto temp = helper::LookupByName(RE::FormType::MagicEffect, DrawSphereMGEFEditorName))
+        {
+            DrawSphereMGEF = temp->As<RE::EffectSetting>();
+        }
 
         TURNON = new RE::NiColor(0x16ff75);
         TURNOFF = new RE::NiColor(0x00b6ff);
@@ -24,26 +29,33 @@ namespace vrinput
         {
             controllers[1] = RE::PlayerCharacter::GetSingleton()->GetVRNodeData()->NPCLHnd;
             controllers[0] = RE::PlayerCharacter::GetSingleton()->GetVRNodeData()->NPCRHnd;
-
+            static int i = 1;
             static RE::NiPoint3 sphereWorld;
-            for (auto &s : spheres)
+            for (auto& s : spheres)
             {
                 if (s.attachNode)
                 {
-                    // Update sphere position
-                    if (s.followRotation)
+                    // Update virtual sphere position
+                    if (s.localPosition)
                     {
-                        sphereWorld = s.attachNode->world.translate + s.attachNode->world.rotate * s.localPosition;
+                        if (s.onlyHeading)
+                        {
+                            RE::NiPoint3 rotated = *(s.localPosition);
+                            helper::RotateZ(rotated, s.attachNode->world.rotate);
+                            sphereWorld = s.attachNode->world.translate + rotated;
+                        }
+                        else
+                        {
+                            sphereWorld = s.attachNode->world.translate + s.attachNode->world.rotate * *(s.localPosition);
+                        }
                     }
                     else
                     {
-                        RE::NiPoint3 rotated = s.localPosition;
-                        helper::RotateZ(rotated, s.attachNode->world.rotate);
-                        sphereWorld = s.attachNode->world.translate + rotated;
+                        sphereWorld = s.attachNode->world.translate;
                     }
 
                     // Update visible sphere position
-                    RE::NiAVObject *sphereVisNode = nullptr;
+                    RE::NiAVObject* sphereVisNode = nullptr;
                     if (DrawHolsters)
                     {
                         if (sphereVisNode = RE::PlayerCharacter::GetSingleton()->GetNodeByName(DrawNodeName + std::to_string(s.ID)))
@@ -52,6 +64,11 @@ namespace vrinput
                             {
                                 RE::NiUpdateData ctx;
                                 sphereVisNode->local.translate = parentNode->world.rotate.Transpose() * (sphereWorld - parentNode->world.translate);
+
+                                if (!s.onlyHeading)
+                                { // by default, the sphere model has the same rotation as the NPC root node which has no pitch or roll
+                                    sphereVisNode->local.rotate = parentNode->world.rotate.Transpose() * s.attachNode->world.rotate;
+                                }
                                 sphereVisNode->Update(ctx);
                             }
                         }
@@ -64,7 +81,19 @@ namespace vrinput
                         for (bool isLeft : {false, true})
                         {
                             auto dist = sphereWorld.GetSquaredDistance(controllers[isLeft]->world.translate + controllers[isLeft]->world.rotate * palmoffset);
-                            if (dist <= s.squaredRadius - hysteresis && !s.overlapState[isLeft])
+                            float angle = 0.0f;
+                            if (s.normal)
+                            {
+                                auto sphereNorm = helper::VectorNormalized(s.attachNode->world.rotate * *(s.normal));
+                                auto palmNorm = helper::VectorNormalized(controllers[isLeft]->world.rotate * NPCHandPalmNormal); ///helper::GetPalmVectorWS(controllers[isLeft]->world.rotate, isLeft);
+                                angle = std::acos(helper::DotProductSafe(sphereNorm, palmNorm)); // both unit vectors
+                                if (i++ % 100 == 0)
+                                {
+                                    SKSE::log::info("{} angle: {}", isLeft ? "left" : "right", RE::rad_to_deg(angle));
+                                }
+                            }
+
+                            if (dist <= s.squaredRadius && angle <= s.maxAngle && !s.overlapState[isLeft])
                             {
                                 s.overlapState[isLeft] = true;
                                 OverlapEvent e = OverlapEvent(s.ID, true, isLeft);
@@ -74,7 +103,7 @@ namespace vrinput
                                     _cb(e);
                                 }
                             }
-                            else if (dist > s.squaredRadius + hysteresis && s.overlapState[isLeft])
+                            else if ((dist > s.squaredRadius + hysteresis || angle > s.maxAngle + hysteresis_angular) && s.overlapState[isLeft])
                             {
                                 s.overlapState[isLeft] = false;
                                 OverlapEvent e = OverlapEvent(s.ID, false, isLeft);
@@ -104,15 +133,15 @@ namespace vrinput
         }
     }
 
-    int32_t OverlapSphereManager::Create(RE::NiNode *attachNode, RE::NiPoint3 localPosition, float radius, bool followRotation, bool debugNode)
+    int32_t OverlapSphereManager::Create(RE::NiNode* attachNode, RE::NiPoint3* localPosition, float radius, RE::NiPoint3* normal, float maxAngle, bool onlyHeading, bool debugNode)
     {
 
         if (attachNode)
         {
-            spheres.push_back(OverlapSphere(attachNode, localPosition, radius, next_ID, followRotation, debugNode));
+            spheres.push_back(OverlapSphere(attachNode, localPosition, radius, next_ID, normal, maxAngle, onlyHeading, debugNode));
             if (DrawHolsters)
             {
-                AddVisibleHolster(next_ID, radius, debugNode);
+                AddVisibleHolster(spheres.back());
                 Dispel();
             }
             SKSE::log::info("holster created with id {}", next_ID);
@@ -133,8 +162,8 @@ namespace vrinput
         }
 
         // delete virtual holster
-        std::erase_if(spheres, [targetID](const OverlapSphere &x)
-                      { return (x.ID == targetID); });
+        std::erase_if(spheres, [targetID](const OverlapSphere& x)
+            { return (x.ID == targetID); });
     }
 
     void OverlapSphereManager::ShowHolsterSpheres()
@@ -142,9 +171,9 @@ namespace vrinput
         // TODO add dummy spheres to visualize the hand collision
         if (!DrawHolsters)
         {
-            for (auto &s : spheres)
+            for (auto& s : spheres)
             {
-                AddVisibleHolster(s.ID, sqrt(s.squaredRadius), s.debugNode);
+                AddVisibleHolster(s);
             }
 
             Dispel();
@@ -156,7 +185,7 @@ namespace vrinput
     {
         if (DrawHolsters)
         {
-            for (auto &s : spheres)
+            for (auto& s : spheres)
             {
                 DestroyVisibleHolster(s.ID);
             }
@@ -164,60 +193,79 @@ namespace vrinput
         }
     }
 
-    void OverlapSphereManager::AddVisibleHolster(int32_t id, float scale, bool debugNode)
+    void OverlapSphereManager::AddVisibleHolster(OverlapSphere& s)
     {
         // each sphere must be added sequentially, and it takes some ms
-        std::thread CastSpellAndEditHitArt([this, id, scale, debugNode]()
-                                           {
-        std::lock_guard<std::mutex> lock(CastSpellMutex);
-        if (DrawSphereSpell)
-        {
-            auto player = RE::PlayerCharacter::GetSingleton();
-            if (player){
-                auto caster = player->GetMagicCaster(RE::MagicSystem::CastingSource::kInstant);
-                if (caster)
+        std::thread CastSpellAndEditHitArt([this, s]()
+            {
+                std::lock_guard<std::mutex> lock(CastSpellMutex);
+                if (DrawSphereSpell)
                 {
-                    caster->CastSpellImmediate(DrawSphereSpell, false, player, 1.0, false, 1.0, player);
-
-                    RE::NiAVObject *holsterNode;
-                    int sleeps = 0;
-                    do
+                    auto player = RE::PlayerCharacter::GetSingleton();
+                    if (player)
                     {
-                        std::this_thread::sleep_for(20ms);
-                        holsterNode = player->GetNodeByName(DrawNodeName);
-                        SKSE::log::info("waiting for node {}", id);
-                    } while (!holsterNode && sleeps++ < 100);
-                    if (holsterNode){
-                        std::this_thread::sleep_for(20ms);
-
-                        auto newparent = player->Get3D(true)->GetObjectByName(DrawNewParentNode);
-                        if (newparent)
+                        auto caster = player->GetMagicCaster(RE::MagicSystem::CastingSource::kInstant);
+                        if (caster)
                         {
-                            newparent->AsNode()->AttachChild(holsterNode);
-                            holsterNode->local.scale = scale;
-                            holsterNode->name = DrawNodeName + std::to_string(id);
-                            if (debugNode){  // set to always draw
-                                auto geometry = holsterNode->GetFirstGeometryOfShaderType(RE::BSShaderMaterial::Feature::kGlowMap);
-                                if (geometry)
+                            caster->CastSpellImmediate(DrawSphereSpell, false, player, 1.0, false, 1.0, player);
+
+                            RE::NiAVObject* holsterNode;
+                            int sleeps = 0;
+                            do
+                            {
+                                std::this_thread::sleep_for(10ms);
+                                holsterNode = player->GetNodeByName(DrawNodeName);
+                                SKSE::log::info("waiting for node {}", s.ID);
+                            } while (!holsterNode && sleeps++ < 100);
+                            if (holsterNode)
+                            {
+                                std::this_thread::sleep_for(20ms);
+
+                                auto newparent = player->Get3D(true)->GetObjectByName(DrawNewParentNode);
+                                if (newparent)
                                 {
-                                    auto shaderProp = geometry->GetGeometryRuntimeData().properties[RE::BSGeometry::States::kEffect].get();
-                                    if (shaderProp)
-                                    {
-                                        auto shader = netimmerse_cast<RE::BSLightingShaderProperty *>(shaderProp);
-                                        if (shader)
+                                    newparent->AsNode()->AttachChild(holsterNode);
+                                    holsterNode->local.scale = std::sqrt(s.squaredRadius);
+                                    holsterNode->name = DrawNodeName + std::to_string(s.ID);
+                                    if (s.debugNode)
+                                    { // set to always draw
+
+                                        if (auto geometry = holsterNode->GetFirstGeometryOfShaderType(RE::BSShaderMaterial::Feature::kGlowMap))
                                         {
-                                            shader->SetFlags(RE::BSShaderProperty::EShaderPropertyFlag8::kZBufferTest, false);
+                                            auto shaderProp = geometry->GetGeometryRuntimeData().properties[RE::BSGeometry::States::kEffect].get();
+                                            if (shaderProp)
+                                            {
+                                                auto shader = netimmerse_cast<RE::BSLightingShaderProperty*>(shaderProp);
+                                                if (shader)
+                                                {
+                                                    shader->SetFlags(RE::BSShaderProperty::EShaderPropertyFlag8::kZBufferTest, false);
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if (s.normal)
+                                    {
+                                        if (auto normalPointer = holsterNode->GetObjectByName(DrawNodePointerName))
+                                        {   // Show the pointer and rotate to align with the desired normal vector
+                                            normalPointer->local.scale = 1.2f;
+                                            RE::NiPoint3 defaultNorm = { 1, 0, 0 };  // arbitrary but comes from the .nif
+                                            RE::NiPoint3 axis = defaultNorm.UnitCross(*(s.normal));
+
+                                            if (axis.Length() < std::numeric_limits<float>::epsilon())
+                                            {   // handle the case where the vectors are collinear...
+                                                axis = { 0, 1, 0 };
+                                            }
+                                            auto angle = std::acos(helper::DotProductSafe(defaultNorm, *(s.normal)));
+
+                                            SKSE::log::info("rotating node normal {} by {} on axis {} {} {}", s.ID, angle, axis.x, axis.y, axis.z);
+                                            normalPointer->local.rotate = helper::getRotationAxisAngle(axis, angle);
                                         }
                                     }
                                 }
                             }
                         }
                     }
-                }
-            }
-        } else {
-            SKSE::log::info("holster visible failed");
-        } });
+                } });
 
         // technically this is not good because the mutex can be destroyed while in use if the OverlapSphereManager goes out of scope, but it's a singleton that lives as long as Skyrim.exe
         CastSpellAndEditHitArt.detach();
@@ -241,7 +289,7 @@ namespace vrinput
         }
     }
 
-    void OverlapSphereManager::SetGlowColor(RE::NiAVObject *target, RE::NiColor *c)
+    void OverlapSphereManager::SetGlowColor(RE::NiAVObject* target, RE::NiColor* c)
     {
         auto geometry = target->GetFirstGeometryOfShaderType(RE::BSShaderMaterial::Feature::kGlowMap);
         if (geometry)
@@ -249,7 +297,7 @@ namespace vrinput
             auto shaderProp = geometry->GetGeometryRuntimeData().properties[RE::BSGeometry::States::kEffect].get();
             if (shaderProp)
             {
-                auto shader = netimmerse_cast<RE::BSLightingShaderProperty *>(shaderProp);
+                auto shader = netimmerse_cast<RE::BSLightingShaderProperty*>(shaderProp);
                 if (shader)
                 {
                     shader->emissiveColor = c;
