@@ -45,9 +45,17 @@ private:
     bool _hand;
     State prev_state = State::Start;
     State state;
-
     RE::TESAmmo *ammo;
-    int32_t OverlapSphereID_PlaceArrow;
+
+    // Interaction Sphere data
+    int32_t PlaceArrow_ID;
+    int32_t ReloadGrab_ID;
+    RE::NiPoint3 ReloadGrab_offset = {6, 16, 0};
+    RE::NiPoint3 ReloadGrab_normal = {-1,0,0}; // seems arbitrary but it's due to the rotation of the mechanism
+    float ReloadGrab_angle = RE::deg_to_rad(45);
+    int32_t AimGrab_ID;
+
+
     // animation related state variables and constants
     std::string standard_reload = "standard_reload";
     const float maxrot = 0.6283185;
@@ -83,5 +91,6 @@ private:
     void FireDry();
 
     // misc helpers
-    void CreateOverlapSpheres(uint32_t &PlaceArrow);
+    void CreateOverlapSpheres();
+    void DestroyOverlapSpheres();
 };

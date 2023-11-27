@@ -3,8 +3,15 @@
 
 namespace helper
 {
+    using namespace RE;
+
+    constexpr inline float deg2rad(const float d)
+    {
+        return d * 0.01745329f;
+    }
+
     // get rotation about Z axis while ignoring other rotations
-    inline float GetAzimuth(RE::NiMatrix3 &rot)
+    inline float GetAzimuth(NiMatrix3 &rot)
     {
         if (std::abs(rot.entry[2][1]) < 0.9995f)
         {
@@ -16,30 +23,55 @@ namespace helper
         }
     }
     // same but X axis
-    inline float GetElevation(RE::NiMatrix3 &rot)
+    inline float GetElevation(NiMatrix3 &rot)
     {
         return -1.0f * std::asin(std::clamp(rot.entry[2][1], -1.0f, 1.0f));
     }
 
-    void RotateZ(RE::NiPoint3 &target, RE::NiMatrix3 &rotator);
+    void RotateZ(NiPoint3 &target, NiMatrix3 &rotator);
 
     // vector stuff from higgs
-    inline float VectorLengthSquared(const RE::NiPoint3 &vec) { return vec.x * vec.x + vec.y * vec.y + vec.z * vec.z; }
-    inline float VectorLength(const RE::NiPoint3 &vec) { return sqrtf(VectorLengthSquared(vec)); }
-    inline float dotProduct(const RE::NiPoint3 &x, const RE::NiPoint3 &y) { return x.x * y.x + x.y * y.y + x.z * y.z; }
-    inline float DotProductSafe(const RE::NiPoint3 &vec1, const RE::NiPoint3 &vec2) { return std::clamp(dotProduct(vec1, vec2), -1.f, 1.f); }
-    inline RE::NiPoint3 VectorNormalized(const RE::NiPoint3 &vec)
+    inline float VectorLengthSquared(const NiPoint3 &vec) { return vec.x * vec.x + vec.y * vec.y + vec.z * vec.z; }
+    inline float VectorLength(const NiPoint3 &vec) { return sqrtf(VectorLengthSquared(vec)); }
+    inline float DotProductSafe(const NiPoint3 &vec1, const NiPoint3 &vec2) { return std::clamp(vec1.Dot(vec2), -1.f, 1.f); }
+    inline NiPoint3 VectorNormalized(const NiPoint3 &vec)
     {
         float length = VectorLength(vec);
-        return length > 0.0f ? vec / length : RE::NiPoint3();
+        return length > 0.0f ? vec / length : NiPoint3();
     }
 
-    RE::NiPoint3 GetPalmVectorWS(RE::NiMatrix3 &handRotation, bool isLeft);
-    RE::NiPoint3 GetThumbVector(RE::NiMatrix3 &handRotation);
+    NiPoint3 GetPalmVectorWS(NiMatrix3 &handRotation, bool isLeft);
+    NiPoint3 GetThumbVector(NiMatrix3 &handRotation);
 
     // matrix stuff
 
-    inline void Quat2Mat(RE::NiMatrix3 &matrix, RE::NiQuaternion &quaternion)
+    // Gets a rotation matrix from an axis and an angle
+    inline NiMatrix3 getRotationAxisAngle(NiPoint3 axis, float theta)
+    {
+        NiMatrix3 result;
+        // This math was found online http://www.euclideanspace.com/maths/geometry/rotations/conversions/angleToMatrix/
+        double c = std::cosf(theta);
+        double s = std::sinf(theta);
+        double t = 1.0 - c;
+        result.entry[0][0] = c + axis.x * axis.x * t;
+        result.entry[1][1] = c + axis.y * axis.y * t;
+        result.entry[2][2] = c + axis.z * axis.z * t;
+        double tmp1 = axis.x * axis.y * t;
+        double tmp2 = axis.z * s;
+        result.entry[1][0] = tmp1 + tmp2;
+        result.entry[0][1] = tmp1 - tmp2;
+        tmp1 = axis.x * axis.z * t;
+        tmp2 = axis.y * s;
+        result.entry[2][0] = tmp1 - tmp2;
+        result.entry[0][2] = tmp1 + tmp2;
+        tmp1 = axis.y * axis.z * t;
+        tmp2 = axis.x * s;
+        result.entry[2][1] = tmp1 + tmp2;
+        result.entry[1][2] = tmp1 - tmp2;
+        return result;
+    }
+
+    inline void Quat2Mat(NiMatrix3 &matrix, NiQuaternion &quaternion)
     {
         float xx = quaternion.x * quaternion.x;
         float xy = quaternion.x * quaternion.y;
@@ -66,7 +98,7 @@ namespace helper
         matrix.entry[2][2] = 1 - 2 * (xx + yy);
     }
 
-    inline void slerpQuat(float interp, RE::NiQuaternion &q1, RE::NiQuaternion &q2, RE::NiMatrix3 &out)
+    inline void slerpQuat(float interp, NiQuaternion &q1, NiQuaternion &q2, NiMatrix3 &out)
     {
         // Convert mat1 to a quaternion
         float q1w = q1.w;
